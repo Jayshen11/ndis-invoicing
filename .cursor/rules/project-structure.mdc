@@ -1,0 +1,22 @@
+---
+description: Follow the requested project folder structure
+alwaysApply: true
+---
+
+# Project Structure
+
+- Keep route entrypoints under the app router using the requested domain layout:
+  `src/app/login`, `src/app/dashboard`, `src/app/clients`, `src/app/providers`,
+  `src/app/invoices`, and `src/app/rate-sets`.
+- Put domain UI and page-specific modules under `src/modules/`, using folders such
+  as `src/modules/client`, `src/modules/provider`, `src/modules/invoice`, and
+  `src/modules/rate-set`.
+- Put business logic in `src/services/` using `*.service.ts` files such as
+  `auth.service.ts`, `invoice.service.ts`, and `ai-extraction.service.ts`.
+- Put data access in `src/repositories/` using `*.repository.ts` files such as
+  `client.repository.ts` and `invoice.repository.ts`.
+- Keep database connection in `src/db/` (e.g. `client.ts`); table DDL runs from `ensure*Schema` patches in `src/repositories/` (e.g. `app-user.repository.ts`, `user-role.repository.ts`).
+- Keep shared integrations and cross-cutting helpers in `src/lib/`, such as
+  `s3.ts`, `ai.ts`, and `auth.ts`.
+- When updating existing code that still uses an older layout, prefer moving it
+  toward this structure instead of adding more files under legacy folders.
