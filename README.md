@@ -6,12 +6,12 @@ Next.js (App Router) admin application for NDIS-related invoicing workflows: par
 
 ## Deliverables (assignment checklist)
 
-| Item | Location |
-|------|----------|
-| **Git repository** | This repo — submit remote URL or archive as required. |
+| Item                           | Location                                                                                                                                                   |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Git repository**             | This repo — submit remote URL or archive as required.                                                                                                      |
 | **Database migration scripts** | [`db/migrations/`](./db/migrations/) (SQL + README); runtime DDL also lives in [`src/repositories/*.ts`](./src/repositories/) (`ensure*Schema` functions). |
-| **README** (this file) | Setup, assumptions, tradeoffs, incomplete. |
-| **Architecture diagram** | [`docs/architecture.md`](./docs/architecture.md) (Mermaid — export to PNG/PDF via [mermaid.live](https://mermaid.live) or your diagram tool). |
+| **README** (this file)         | Setup, assumptions, tradeoffs, incomplete.                                                                                                                 |
+| **Architecture diagram**       | [`docs/architecture.md`](./docs/architecture.md) (Mermaid — export to PNG/PDF via [mermaid.live](https://mermaid.live) or your diagram tool).              |
 
 ---
 
@@ -88,27 +88,27 @@ npm run lint
 
 ## Tradeoffs
 
-| Choice | Benefit | Cost |
-|--------|---------|------|
-| **Runtime `ensure*Schema` in TypeScript** | Fast local onboarding; idempotent patches; schema stays next to repositories. | Not a classic versioned migration chain; harder for DBAs who expect only Flyway/Liquibase-style files. |
-| **`{ data }` / `{ error }` JSON envelopes** | Consistent client parsing (`src/lib/client/api.ts`). | A few utility endpoints return minimal shapes (e.g. `{ exists }`) for convenience. |
-| **Next.js route handlers as API** | Single deployable unit; shared types. | Long-running or heavy jobs would need a separate worker pattern. |
-| **Argon2 password hashing** | Strong default for credentials. | CPU cost per login (acceptable for admin-scale traffic). |
+| Choice                                      | Benefit                                                                       | Cost                                                                                                   |
+| ------------------------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| **Runtime `ensure*Schema` in TypeScript**   | Fast local onboarding; idempotent patches; schema stays next to repositories. | Not a classic versioned migration chain; harder for DBAs who expect only Flyway/Liquibase-style files. |
+| **`{ data }` / `{ error }` JSON envelopes** | Consistent client parsing (`src/lib/client/api.ts`).                          | A few utility endpoints return minimal shapes (e.g. `{ exists }`) for convenience.                     |
+| **Next.js route handlers as API**           | Single deployable unit; shared types.                                         | Long-running or heavy jobs would need a separate worker pattern.                                       |
+| **Argon2 password hashing**                 | Strong default for credentials.                                               | CPU cost per login (acceptable for admin-scale traffic).                                               |
 
 ---
 
-## Senior criteria (how this repo lines up)
+## Criteria (how this repo lines up)
 
 Markers may assess **structure, tradeoffs, edge cases, consistency, performance**. This section maps the codebase to those expectations.
 
 ### Codebase structure (separation of concerns)
 
-| Layer | Role in this project |
-|--------|----------------------|
-| **`src/app/api/**`** | HTTP boundary only: auth checks, parse body/query, call services, return `createSuccessResponse` / `handleRouteError`. |
-| **`src/services/**`** | Business rules, validation orchestration, `ApiError` with structured `details`, permission-sensitive workflows. |
-| **`src/repositories/**`** | Data access (Kysely/SQL), `ensure*Schema` DDL where used, no UI concerns. |
-| **`src/modules/**`** | UI and feature-specific types/components; not authoritative for business rules. |
+| Layer                       | Role in this project                                                                                                   |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| **`src/app/api/**`\*\*      | HTTP boundary only: auth checks, parse body/query, call services, return `createSuccessResponse` / `handleRouteError`. |
+| **`src/services/**`\*\*     | Business rules, validation orchestration, `ApiError` with structured `details`, permission-sensitive workflows.        |
+| **`src/repositories/**`\*\* | Data access (Kysely/SQL), `ensure*Schema` DDL where used, no UI concerns.                                              |
+| **`src/modules/**`\*\*      | UI and feature-specific types/components; not authoritative for business rules.                                        |
 
 Layout convention: route entrypoints under `src/app/*`, domain UI under `src/modules/*`, business logic in `src/services/*.service.ts`, persistence in `src/repositories/*.repository.ts`.
 
@@ -129,7 +129,7 @@ Layout convention: route entrypoints under `src/app/*`, domain UI under `src/mod
 - **PostgreSQL** is the single system of record; relations use **foreign keys** and constraints where modeled (e.g. client gender, invoice lines).
 - **Soft delete / active flags** are used in several domains (`deactivated_at`, `deleted_at`) so lists can stay historically coherent without hard-delete cascades everywhere.
 - **RBAC** is resolved from the user–role–permission chain in the database for login/`/api/auth/me`, not from stale copies in the session alone (see comments in `app-user.repository.ts`).
-- **Audit logging** records mutating actions for traceability (see `audit-log` module).  
+- **Audit logging** records mutating actions for traceability (see `audit-log` module).
 - **Caveat:** not every multi-step business operation is wrapped in an explicit **DB transaction** across all services; where two writes must succeed or fail together, that is a known place to harden for production.
 
 ### Performance considerations
