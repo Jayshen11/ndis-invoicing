@@ -17,7 +17,7 @@ import {
 
 type AuthSessionContextValue = {
   session: AuthMeSessionData | null;
-  /** True while `/api/auth/me` is in flight for the shared session load. */
+  /** True until the first `/api/auth/me` for this provider finishes (in flight or not yet started). */
   isLoading: boolean;
   refetch: () => Promise<void>;
   ensureSessionLoaded: () => Promise<void>;
@@ -27,7 +27,9 @@ const AuthSessionContext = createContext<AuthSessionContextValue | null>(null);
 
 export function AuthSessionProvider({ children }: Readonly<{ children: ReactNode }>) {
   const [session, setSession] = useState<AuthMeSessionData | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  // SEC: Start true so consumers never treat initial `session === null` as logged-out before
+  // `ensureSessionLoaded` runs (same-tick useLayoutEffect still sees pre-fetch state).
+  const [isLoading, setIsLoading] = useState(true);
   const loadPromiseRef = useRef<Promise<void> | null>(null);
 
   const refetch = useCallback(async () => {
