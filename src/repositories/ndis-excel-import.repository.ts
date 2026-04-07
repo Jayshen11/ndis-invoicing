@@ -247,6 +247,62 @@ async function upsertAttribute(
   `.execute(trx);
 }
 
+/** Keeps INSERT round-trips low while staying under Postgres param limits (~65k). */
+const NDIS_PRICE_INSERT_BATCH_SIZE = 1000;
+
+type NdisPriceInsertRow = {
+  supportItemId: number;
+  typeId: number | null;
+  regionCode: string;
+  startTs: string;
+  endTs: string | null;
+  unitPrice: number;
+};
+
+function sqlPriceEndDate(endTs: string | null) {
+  if (endTs === null) {
+    return sql`NULL`;
+  }
+
+  return sql`${endTs}::timestamptz`;
+}
+
+async function insertNdisPriceBatch(
+  executor: RateSetDbExecutor,
+  rateSetId: number,
+  batch: NdisPriceInsertRow[],
+): Promise<void> {
+  if (batch.length === 0) {
+    return;
+  }
+
+  await sql`
+    INSERT INTO rate_set_support_item_price (
+      rate_set_id,
+      support_item_id,
+      type_id,
+      pricing_region_code,
+      start_date,
+      end_date,
+      unit_price
+    )
+    VALUES ${sql.join(
+      batch.map((r) =>
+        sql`(
+          ${rateSetId},
+          ${r.supportItemId},
+          ${r.typeId},
+          ${r.regionCode},
+          ${r.startTs}::timestamptz,
+          ${sqlPriceEndDate(r.endTs)},
+          ${r.unitPrice}
+        )`,
+      ),
+      sql`, `,
+    )}
+  `.execute(executor);
+}
+
 async function resolveTypeId(
   trx: RateSetDbExecutor,
   code: string,
@@ -415,6 +471,17 @@ export async function applyNdisExcelImport(
 
   let priceRowsWritten = 0;
   const typeIdCache = new Map<string, number>();
+  const priceBatch: NdisPriceInsertRow[] = [];
+
+  async function flushPriceBatch(): Promise<void> {
+    if (priceBatch.length === 0) {
+      return;
+    }
+
+    await insertNdisPriceBatch(executor, rateSetId, priceBatch);
+    priceRowsWritten += priceBatch.length;
+    priceBatch.length = 0;
+  }
 
   for (const logical of rows) {
     const supportItemId = itemIdByNumber.get(logical.itemNumber);
@@ -445,53 +512,22 @@ export async function applyNdisExcelImport(
       logical.priceEnd === null ? null : utcMidnightIso(logical.priceEnd);
 
     for (const [regionCode, unitPrice] of logical.regionPrices) {
-      if (endTs === null) {
-        await sql`
-          INSERT INTO rate_set_support_item_price (
-            rate_set_id,
-            support_item_id,
-            type_id,
-            pricing_region_code,
-            start_date,
-            end_date,
-            unit_price
-          )
-          VALUES (
-            ${rateSetId},
-            ${supportItemId},
-            ${typeId},
-            ${regionCode},
-            ${startTs}::timestamptz,
-            NULL,
-            ${unitPrice}
-          )
-        `.execute(executor);
-      } else {
-        await sql`
-          INSERT INTO rate_set_support_item_price (
-            rate_set_id,
-            support_item_id,
-            type_id,
-            pricing_region_code,
-            start_date,
-            end_date,
-            unit_price
-          )
-          VALUES (
-            ${rateSetId},
-            ${supportItemId},
-            ${typeId},
-            ${regionCode},
-            ${startTs}::timestamptz,
-            ${endTs}::timestamptz,
-            ${unitPrice}
-          )
-        `.execute(executor);
-      }
+      priceBatch.push({
+        supportItemId,
+        typeId,
+        regionCode,
+        startTs,
+        endTs,
+        unitPrice,
+      });
 
-      priceRowsWritten += 1;
+      if (priceBatch.length >= NDIS_PRICE_INSERT_BATCH_SIZE) {
+        await flushPriceBatch();
+      }
     }
   }
+
+  await flushPriceBatch();
 
   let categoriesSoftDeleted = 0;
 
