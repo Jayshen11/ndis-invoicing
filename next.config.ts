@@ -5,7 +5,7 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ["pdf-parse"],
   async redirects() {
     return [
-      { source: "/", destination: "/dashboard", permanent: true },
+      { source: "/", destination: "/login", permanent: true },
       { source: "/participants", destination: "/clients", permanent: true },
       { source: "/settings", destination: "/rbac-roles", permanent: true },
       {
