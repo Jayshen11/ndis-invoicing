@@ -25,6 +25,9 @@ const INPUT_CLASS_NAME =
 const READONLY_INPUT_CLASS_NAME =
   "mt-2 w-full cursor-not-allowed rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none";
 
+/** Debounce service-date → rate-set API lookups to avoid a request per calendar click. */
+const RATE_SET_DATE_DEBOUNCE_MS = 320;
+
 type LookupOption = { id: number; label: string };
 
 type InvoiceLineForm = {
@@ -246,6 +249,14 @@ export function InvoicesManager() {
     null,
   );
   const pdfFileInputRef = useRef<HTMLInputElement | null>(null);
+  const rateSetDateDebounceTimersRef = useRef<
+    Map<string, ReturnType<typeof setTimeout>>
+  >(new Map());
+  const rateSetDatePendingLineRef = useRef<Map<string, InvoiceLineForm>>(
+    new Map(),
+  );
+  const rateSetResolveSeqByLineKeyRef = useRef<Map<string, number>>(new Map());
+  const rateSetLookupEpochRef = useRef(0);
 
   const selectedPricingRegion = useMemo(() => {
     if (formClientId === "") {
@@ -442,10 +453,85 @@ export function InvoicesManager() {
   const totalPages = Math.max(1, Math.ceil(listTotal / pageSize));
   const safePage = Math.min(currentPage, totalPages);
 
+  function cancelInvoiceDrawerRateSetLookups() {
+    for (const t of rateSetDateDebounceTimersRef.current.values()) {
+      clearTimeout(t);
+    }
+
+    rateSetDateDebounceTimersRef.current.clear();
+    rateSetDatePendingLineRef.current.clear();
+    rateSetResolveSeqByLineKeyRef.current.clear();
+    rateSetLookupEpochRef.current += 1;
+  }
+
+  function cancelRateSetLookupForLineKey(lineKey: string) {
+    const timers = rateSetDateDebounceTimersRef.current;
+    const pending = rateSetDatePendingLineRef.current;
+    const seqMap = rateSetResolveSeqByLineKeyRef.current;
+    const existing = timers.get(lineKey);
+
+    if (existing !== undefined) {
+      clearTimeout(existing);
+      timers.delete(lineKey);
+    }
+
+    pending.delete(lineKey);
+    seqMap.set(lineKey, (seqMap.get(lineKey) ?? 0) + 1);
+  }
+
+  function bumpRateSetResolveSeq(lineKey: string): number {
+    const m = rateSetResolveSeqByLineKeyRef.current;
+    const next = (m.get(lineKey) ?? 0) + 1;
+    m.set(lineKey, next);
+
+    return next;
+  }
+
+  function isStaleRateSetResolve(
+    lineKey: string,
+    epoch: number,
+    seq: number,
+  ): boolean {
+    if (rateSetLookupEpochRef.current !== epoch) {
+      return true;
+    }
+
+    return rateSetResolveSeqByLineKeyRef.current.get(lineKey) !== seq;
+  }
+
+  function scheduleResolveRateSetForLineKey(
+    lineKey: string,
+    line: InvoiceLineForm,
+  ) {
+    rateSetDatePendingLineRef.current.set(lineKey, line);
+    const timers = rateSetDateDebounceTimersRef.current;
+    const existing = timers.get(lineKey);
+
+    if (existing !== undefined) {
+      clearTimeout(existing);
+    }
+
+    // Invalidate any in-flight lookup so a slower response cannot win over newer dates.
+    bumpRateSetResolveSeq(lineKey);
+
+    const id = setTimeout(() => {
+      timers.delete(lineKey);
+      const snap = rateSetDatePendingLineRef.current.get(lineKey);
+      rateSetDatePendingLineRef.current.delete(lineKey);
+
+      if (snap !== undefined) {
+        void resolveRateSetForLineKey(lineKey, snap);
+      }
+    }, RATE_SET_DATE_DEBOUNCE_MS);
+
+    timers.set(lineKey, id);
+  }
+
   function openAddDrawer() {
     if (!canWriteInvoices) {
       return;
     }
+    cancelInvoiceDrawerRateSetLookups();
     setEditingInvoiceId(null);
     setEditingInvoiceStatus(null);
     setDrawerReadOnly(false);
@@ -462,6 +548,7 @@ export function InvoicesManager() {
   }
 
   function closeDrawer() {
+    cancelInvoiceDrawerRateSetLookups();
     setDrawerOpen(false);
     setEditingInvoiceId(null);
     setEditingInvoiceStatus(null);
@@ -474,6 +561,7 @@ export function InvoicesManager() {
   }
 
   async function openEditDrawer(invoiceId: number) {
+    cancelInvoiceDrawerRateSetLookups();
     setLoadingEditId(invoiceId);
     setDrawerError(null);
     setDrawerFieldErrors({});
@@ -538,11 +626,31 @@ export function InvoicesManager() {
     }
   }
 
-  async function resolveRateSetForLine(index: number, line: InvoiceLineForm) {
-    if (!line.start_date || !line.end_date || line.start_date > line.end_date) {
-      setLines((prev) =>
-        prev.map((l, i) =>
-          i === index
+  async function resolveRateSetForLineKey(
+    lineKey: string,
+    line: InvoiceLineForm,
+  ) {
+    const epoch = rateSetLookupEpochRef.current;
+    const seq = rateSetResolveSeqByLineKeyRef.current.get(lineKey) ?? 0;
+
+    if (
+      !line.start_date ||
+      !line.end_date ||
+      line.start_date > line.end_date
+    ) {
+      if (isStaleRateSetResolve(lineKey, epoch, seq)) {
+        return;
+      }
+
+      setLines((prev) => {
+        const i = prev.findIndex((l) => l.key === lineKey);
+
+        if (i === -1) {
+          return prev;
+        }
+
+        return prev.map((l, j) =>
+          j === i
             ? {
                 ...l,
                 rate_set_id: "",
@@ -552,19 +660,30 @@ export function InvoicesManager() {
                 supportItems: [],
                 support_item_id: "",
                 max_rate: "",
+                loadingRateSet: false,
               }
             : l,
-        ),
-      );
+        );
+      });
 
       return;
     }
 
-    setLines((prev) =>
-      prev.map((l, i) =>
-        i === index ? { ...l, loadingRateSet: true, rateSetMessage: null } : l,
-      ),
-    );
+    if (isStaleRateSetResolve(lineKey, epoch, seq)) {
+      return;
+    }
+
+    setLines((prev) => {
+      const i = prev.findIndex((l) => l.key === lineKey);
+
+      if (i === -1) {
+        return prev;
+      }
+
+      return prev.map((l, j) =>
+        j === i ? { ...l, loadingRateSet: true, rateSetMessage: null } : l,
+      );
+    });
 
     try {
       const params = new URLSearchParams({
@@ -575,10 +694,20 @@ export function InvoicesManager() {
         `/api/invoices/lookup/rate-set?${params.toString()}`,
       );
 
+      if (isStaleRateSetResolve(lineKey, epoch, seq)) {
+        return;
+      }
+
       if (data.rate_set_ids.length === 0) {
-        setLines((prev) =>
-          prev.map((l, i) =>
-            i === index
+        setLines((prev) => {
+          const i = prev.findIndex((l) => l.key === lineKey);
+
+          if (i === -1) {
+            return prev;
+          }
+
+          return prev.map((l, j) =>
+            j === i
               ? {
                   ...l,
                   rate_set_id: "",
@@ -591,16 +720,22 @@ export function InvoicesManager() {
                   loadingRateSet: false,
                 }
               : l,
-          ),
-        );
+          );
+        });
 
         return;
       }
 
       if (data.rate_set_ids.length >= 2 || data.ambiguous) {
-        setLines((prev) =>
-          prev.map((l, i) =>
-            i === index
+        setLines((prev) => {
+          const i = prev.findIndex((l) => l.key === lineKey);
+
+          if (i === -1) {
+            return prev;
+          }
+
+          return prev.map((l, j) =>
+            j === i
               ? {
                   ...l,
                   rate_set_id: "",
@@ -613,8 +748,8 @@ export function InvoicesManager() {
                   loadingRateSet: false,
                 }
               : l,
-          ),
-        );
+          );
+        });
 
         return;
       }
@@ -625,9 +760,19 @@ export function InvoicesManager() {
         `/api/invoices/lookup/categories?rate_set_id=${rsId}`,
       );
 
-      setLines((prev) =>
-        prev.map((l, i) =>
-          i === index
+      if (isStaleRateSetResolve(lineKey, epoch, seq)) {
+        return;
+      }
+
+      setLines((prev) => {
+        const i = prev.findIndex((l) => l.key === lineKey);
+
+        if (i === -1) {
+          return prev;
+        }
+
+        return prev.map((l, j) =>
+          j === i
             ? {
                 ...l,
                 rate_set_id: rsId,
@@ -640,20 +785,30 @@ export function InvoicesManager() {
                 loadingRateSet: false,
               }
             : l,
-        ),
-      );
+        );
+      });
     } catch {
-      setLines((prev) =>
-        prev.map((l, i) =>
-          i === index
+      if (isStaleRateSetResolve(lineKey, epoch, seq)) {
+        return;
+      }
+
+      setLines((prev) => {
+        const i = prev.findIndex((l) => l.key === lineKey);
+
+        if (i === -1) {
+          return prev;
+        }
+
+        return prev.map((l, j) =>
+          j === i
             ? {
                 ...l,
                 loadingRateSet: false,
                 rateSetMessage: "Could not resolve rate set.",
               }
             : l,
-        ),
-      );
+        );
+      });
     }
   }
 
@@ -777,7 +932,15 @@ export function InvoicesManager() {
   }
 
   function removeLine(index: number) {
-    setLines((prev) => prev.filter((_, i) => i !== index));
+    setLines((prev) => {
+      const victim = prev[index];
+
+      if (victim) {
+        cancelRateSetLookupForLineKey(victim.key);
+      }
+
+      return prev.filter((_, i) => i !== index);
+    });
     clearItemFieldErrors();
   }
 
@@ -1588,7 +1751,19 @@ export function InvoicesManager() {
                               [`items[${index}].start_date`]: undefined,
                               [`items[${index}].end_date`]: undefined,
                             }));
-                            void resolveRateSetForLine(index, nextLine);
+                            if (
+                              !nextLine.start_date ||
+                              !nextLine.end_date ||
+                              nextLine.start_date > nextLine.end_date
+                            ) {
+                              cancelRateSetLookupForLineKey(nextLine.key);
+                              void resolveRateSetForLineKey(nextLine.key, nextLine);
+                            } else {
+                              scheduleResolveRateSetForLineKey(
+                                nextLine.key,
+                                nextLine,
+                              );
+                            }
                           }}
                           className={INPUT_CLASS_NAME}
                         />
@@ -1611,7 +1786,19 @@ export function InvoicesManager() {
                               ...previous,
                               [`items[${index}].end_date`]: undefined,
                             }));
-                            void resolveRateSetForLine(index, nextLine);
+                            if (
+                              !nextLine.start_date ||
+                              !nextLine.end_date ||
+                              nextLine.start_date > nextLine.end_date
+                            ) {
+                              cancelRateSetLookupForLineKey(nextLine.key);
+                              void resolveRateSetForLineKey(nextLine.key, nextLine);
+                            } else {
+                              scheduleResolveRateSetForLineKey(
+                                nextLine.key,
+                                nextLine,
+                              );
+                            }
                           }}
                           className={
                             lineDateRangeError === null
