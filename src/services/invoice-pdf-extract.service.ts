@@ -1,3 +1,4 @@
+import { ApiError, isApiError } from "@/lib/api/errors";
 import { uploadInvoicePdfToS3 } from "@/lib/s3-invoice-pdf";
 import {
   findActiveClientIdByNdisDigits,
@@ -224,14 +225,54 @@ ${pdfText.slice(0, MAX_PDF_TEXT_CHARS)}`;
       }),
       signal: controller.signal,
     });
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new ApiError(
+        504,
+        "EXTRACT_TIMEOUT",
+        "PDF extraction timed out. Try a smaller file or try again.",
+      );
+    }
+
+    console.error("OpenAI request network failure.", error);
+    throw new ApiError(
+      502,
+      "EXTRACT_AI_UNAVAILABLE",
+      "Could not reach the document extraction service. Check server network and OPENAI_BASE_URL.",
+    );
   } finally {
     clearTimeout(timeoutId);
   }
 
   if (!response.ok) {
-    await response.text().catch(() => "");
+    const errBody = await response.text().catch(() => "");
+    console.error(
+      "OpenAI chat completions failed.",
+      response.status,
+      errBody.slice(0, 800),
+    );
 
-    throw new Error(`OpenAI request failed (${response.status}).`);
+    if (response.status === 429) {
+      throw new ApiError(
+        429,
+        "EXTRACT_RATE_LIMIT",
+        "Extraction rate limit reached. Wait a moment and try again.",
+      );
+    }
+
+    if (response.status === 401) {
+      throw new ApiError(
+        502,
+        "EXTRACT_AI_AUTH",
+        "OpenAI API key is invalid or expired. Check OPENAI_API_KEY on the server.",
+      );
+    }
+
+    throw new ApiError(
+      502,
+      "EXTRACT_AI_FAILED",
+      `Document extraction failed (upstream status ${response.status}). See server logs for details.`,
+    );
   }
 
   const payload: unknown = await response.json();
@@ -241,7 +282,12 @@ ${pdfText.slice(0, MAX_PDF_TEXT_CHARS)}`;
   const content = record.choices?.[0]?.message?.content;
 
   if (typeof content !== "string") {
-    throw new Error("OpenAI returned an unexpected payload.");
+    console.error("OpenAI returned an unexpected payload shape.");
+    throw new ApiError(
+      502,
+      "EXTRACT_AI_PAYLOAD",
+      "The extraction service returned an unexpected response. Try again or use another PDF.",
+    );
   }
 
   const parsed = safeJsonParseObject(content);
@@ -410,9 +456,16 @@ export async function extractInvoicePdfForApi(
   try {
     raw = await callOpenAiForInvoiceJson(pdfText, documentUrl);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Extraction failed.";
+    if (isApiError(error)) {
+      throw error;
+    }
 
-    throw new Error(message);
+    console.error("Invoice PDF extraction failed (unexpected).", error);
+    throw new ApiError(
+      500,
+      "INTERNAL_ERROR",
+      "Could not extract invoice from PDF.",
+    );
   }
 
   const invoiceNumber = toTrimmedString(raw.invoice_number);

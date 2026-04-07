@@ -284,12 +284,6 @@ export function InvoicesManager() {
     return any ? round2(sum) : "";
   }, [lines]);
 
-  const itemLevelFieldErrors = useMemo(() => {
-    return Object.entries(drawerFieldErrors).filter(([key]) =>
-      key.startsWith("items["),
-    );
-  }, [drawerFieldErrors]);
-
   useEffect(() => {
     const timeoutId = globalThis.setTimeout(() => {
       setInvoiceNumberSearch(invoiceNumberInput.trim());
@@ -1046,18 +1040,39 @@ export function InvoicesManager() {
       closeDrawer();
       await loadInvoices();
     } catch (error) {
-      const nextFieldErrors =
+      const rawFieldErrors =
         error instanceof ApiRequestError
           ? getRequestFieldErrors<string>(error)
           : {};
 
-      setDrawerFieldErrors(nextFieldErrors);
+      const hadItemFieldErrors = Object.keys(rawFieldErrors).some((key) =>
+        key.startsWith("items["),
+      );
+      const nonItemFieldErrors = Object.fromEntries(
+        Object.entries(rawFieldErrors).filter(([key]) => !key.startsWith("items[")),
+      ) as FieldErrors<string>;
 
-      const hasInlineErrors = Object.keys(nextFieldErrors).length > 0;
+      setDrawerFieldErrors(nonItemFieldErrors);
+
+      const hasNonItemErrors = Object.keys(nonItemFieldErrors).length > 0;
 
       if (error instanceof ApiRequestError) {
-        if (error.code === "VALIDATION_ERROR" && hasInlineErrors) {
-          setDrawerError(null);
+        if (error.code === "VALIDATION_ERROR") {
+          if (hadItemFieldErrors && hasNonItemErrors) {
+            setDrawerError(
+              "Please fix the highlighted fields and complete each line item (including service start and end dates).",
+            );
+          } else if (hadItemFieldErrors) {
+            setDrawerError(
+              "Please set service start and end dates for each line item before saving.",
+            );
+          } else if (hasNonItemErrors) {
+            setDrawerError(null);
+          } else {
+            setDrawerError(
+              getRequestErrorMessage(error, "Failed to save invoice."),
+            );
+          }
         } else {
           setDrawerError(getRequestErrorMessage(error, "Failed to save invoice."));
         }
@@ -1964,16 +1979,6 @@ export function InvoicesManager() {
                 <p className="mt-4 text-sm text-rose-600">
                   {drawerFieldErrors.items}
                 </p>
-              ) : null}
-              {itemLevelFieldErrors.length > 0 ? (
-                <ul className="mt-2 list-inside list-disc text-sm text-rose-600">
-                  {itemLevelFieldErrors.map(([field, message]) => (
-                    <li key={field}>
-                      <span className="font-mono text-xs">{field}</span>:{" "}
-                      {message}
-                    </li>
-                  ))}
-                </ul>
               ) : null}
               {drawerFieldErrors.form ? (
                 <p className="mt-2 text-sm text-rose-600">

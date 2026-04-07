@@ -1,4 +1,4 @@
-import { ApiError, type ApiErrorDetail } from "@/lib/api/errors";
+import { ApiError, type ApiErrorDetail, isApiError } from "@/lib/api/errors";
 import type { InvoiceListRow } from "@/modules/invoice/types";
 import { getClientRowById } from "@/repositories/client.repository";
 import {
@@ -18,6 +18,56 @@ import {
 import { recordAuditEvent } from "@/services/audit-log.service";
 
 const INVOICE_NUMBER_MAX = 200;
+
+/** node-pg / Postgres driver errors expose `code` (SQLSTATE). */
+function pgErrorCode(error: unknown): string | undefined {
+  if (typeof error !== "object" || error === null || !("code" in error)) {
+    return undefined;
+  }
+
+  const code = (error as { code: unknown }).code;
+
+  return typeof code === "string" ? code : undefined;
+}
+
+function rethrowInvoiceSaveError(error: unknown): never {
+  if (isApiError(error)) {
+    throw error;
+  }
+
+  const sqlState = pgErrorCode(error);
+  console.error("Invoice save failed.", error);
+
+  if (sqlState === "23503") {
+    throw new ApiError(
+      400,
+      "INVOICE_REFERENCE_ERROR",
+      "Save failed: a linked record is missing or invalid (participant, provider, rate set, or line item). Refresh and try again.",
+    );
+  }
+
+  if (sqlState === "23505") {
+    throw new ApiError(
+      409,
+      "INVOICE_CONFLICT",
+      "Save failed: duplicate or conflicting data (for example invoice number for this provider).",
+    );
+  }
+
+  if (sqlState === "23502") {
+    throw new ApiError(
+      400,
+      "VALIDATION_ERROR",
+      "Save failed: a required database field was empty.",
+    );
+  }
+
+  throw new ApiError(
+    500,
+    "INTERNAL_ERROR",
+    "Failed to save invoice. Check server logs for details.",
+  );
+}
 
 export type CreateInvoiceItemPayload = {
   start_date?: string | null;
@@ -541,6 +591,9 @@ async function saveInvoice(
 
   const itemsRaw = normalizeItemPayloads(body.items);
   const invoiceDateIso = ymdStartUtc(invoiceDateYmd);
+  const clientPricingRegionTrimmed = String(
+    client.pricing_region ?? "",
+  ).trim();
 
   if (status === "drafted") {
     const rows = buildDraftItems(itemsRaw);
@@ -597,9 +650,19 @@ async function saveInvoice(
     return created;
   }
 
+  if (clientPricingRegionTrimmed === "") {
+    throw new ApiError(400, "VALIDATION_ERROR", "Validation failed.", [
+      {
+        field: "client_id",
+        message:
+          "Participant must have a pricing region before you can complete an invoice.",
+      },
+    ]);
+  }
+
   const completedItems = await validateAndBuildCompletedItems(
     itemsRaw,
-    client.pricing_region,
+    clientPricingRegionTrimmed,
     details,
   );
 
@@ -628,7 +691,7 @@ async function saveInvoice(
     throw new ApiError(400, "VALIDATION_ERROR", "Validation failed.", [
       {
         field: "expected_amount",
-        message: "Expected amount cannot exceed the total invoiced amount.",
+        message: `Expected amount (${expectedStr}) cannot be greater than the total from line items (${amountStr}, sum of unit × invoiced rate per line). Increase units/rates or lower expected amount.`,
       },
     ]);
   }
@@ -679,7 +742,11 @@ async function saveInvoice(
 export async function createInvoice(
   payload: unknown,
 ): Promise<InvoiceListRow> {
-  return saveInvoice(payload, null);
+  try {
+    return await saveInvoice(payload, null);
+  } catch (error) {
+    rethrowInvoiceSaveError(error);
+  }
 }
 
 export async function updateInvoice(
@@ -697,5 +764,9 @@ export async function updateInvoice(
     ]);
   }
 
-  return saveInvoice(payload, invoiceId);
+  try {
+    return await saveInvoice(payload, invoiceId);
+  } catch (error) {
+    rethrowInvoiceSaveError(error);
+  }
 }

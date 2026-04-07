@@ -121,7 +121,7 @@ export async function getClientRowById(
     from client c
     left join gender g
       on g.id = c.gender_id
-      and coalesce(g.is_deleted, false) = false
+      and g.deactivated_at is null
     where c.id = ${clientId}
       and c.deleted_at is null
     limit 1

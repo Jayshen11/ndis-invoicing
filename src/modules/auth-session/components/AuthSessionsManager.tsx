@@ -16,6 +16,12 @@ const VIEW_FIELD_CLASS =
 const VIEW_SELECT_CLASS =
   "mt-2 w-full cursor-default appearance-none rounded-lg border border-slate-200 bg-slate-50 bg-[length:1rem] bg-[right_0.75rem_center] bg-no-repeat px-3 py-2.5 pr-10 text-sm text-slate-700 outline-none disabled:opacity-100";
 
+/** Sticky last column for wide tables (horizontal scroll). */
+const ACTIONS_HEAD_CLASS =
+  "sticky right-0 z-20 whitespace-nowrap border-l border-slate-200 bg-white px-3 py-3 text-left font-semibold shadow-[-8px_0_12px_-6px_rgba(15,23,42,0.12)]";
+const ACTIONS_CELL_CLASS =
+  "sticky right-0 z-10 whitespace-nowrap border-l border-slate-200 bg-white px-3 py-4 shadow-[-8px_0_12px_-6px_rgba(15,23,42,0.12)] group-hover:bg-slate-50";
+
 function formatDateTime(value: string | null): string {
   if (!value) {
     return "—";
@@ -603,7 +609,7 @@ export function AuthSessionsManager() {
                   <th className="px-3 py-3 font-semibold">Expires At</th>
                   <th className="px-3 py-3 font-semibold">Revoked At</th>
                   <th className="px-3 py-3 font-semibold">Created At</th>
-                  <th className="px-3 py-3 font-semibold">Actions</th>
+                  <th className={ACTIONS_HEAD_CLASS}>Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -623,7 +629,10 @@ export function AuthSessionsManager() {
                   const isBusy = revokingId === session.id;
 
                   return (
-                    <tr key={session.id} className="transition hover:bg-slate-50">
+                    <tr
+                      key={session.id}
+                      className="group transition hover:bg-slate-50"
+                    >
                       <td className="px-3 py-4 font-medium text-slate-900">
                         {session.user_label}
                       </td>
@@ -648,7 +657,7 @@ export function AuthSessionsManager() {
                       <td className="whitespace-nowrap px-3 py-4 text-slate-700">
                         {formatDateTime(session.created_at)}
                       </td>
-                      <td className="px-3 py-4">
+                      <td className={ACTIONS_CELL_CLASS}>
                         <div className="flex flex-wrap items-center gap-2">
                           <button
                             type="button"

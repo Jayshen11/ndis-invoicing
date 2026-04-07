@@ -144,6 +144,7 @@ Layout convention: route entrypoints under `src/app/*`, domain UI under `src/mod
 
 - **AWS S3** — Not integrated as the primary blob store in this codebase; architecture doc describes the target upload flow.
 - **External AI extraction service** — Not implemented as a separate HTTP integration; assignment diagram shows the intended pattern.
+- **OpenAI PDF invoice import** — Uses the OpenAI API when `OPENAI_API_KEY` is set (see `.env.example`). In practice this path is **limited by provider quotas, rate limits, billing, and timeouts**; imports can fail or be flaky on free/low tiers or busy accounts, so it is **not** relied on as a production-grade feature without your own capacity planning and error handling.
 - **Baseline SQL** — [`db/migrations/001_full_schema.sql`](./db/migrations/001_full_schema.sql) for greenfield DBs; runtime `ensure*Schema` may still apply small patches on existing databases.
 - **End-to-end automated migration runner** — No `npm run migrate` CLI; schema is applied by the app and/or manual `psql` per `db/migrations/README.md`.
 - **Production hardening** — Rate limiting, WAF, secrets manager, and backup/DR are deployment concerns, not fully codified here.
