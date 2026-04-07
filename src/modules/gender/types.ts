@@ -7,8 +7,6 @@ export type GenderRow = {
   created_at: string;
   updated_at: string;
   deactivated_at: string | null;
-  /** Logical delete: excluded from list APIs when true. */
-  is_deleted: boolean;
 };
 
 export type Gender = {

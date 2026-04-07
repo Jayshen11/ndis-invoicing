@@ -44,13 +44,15 @@ This starts PostgreSQL via `docker-compose.yml` (persistent volume).
 
 ### 3. Optional: SQL migrations folder
 
-Participant (`client`) and **`gender`** tables are provided as explicit SQL (they are **not** created by TypeScript `ensure*Schema` today):
+For an **empty** database (e.g. Neon), apply the consolidated baseline:
 
 ```bash
-psql "postgresql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}" -f db/migrations/001_gender_and_client.sql
+psql "postgresql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}" -f db/migrations/001_full_schema.sql
 ```
 
-Other domains (users, RBAC patches, providers, invoices, rate sets, sessions, audit log) are created or patched when the app runs and hits the corresponding APIs — see [`db/migrations/README.md`](./db/migrations/README.md).
+Or with a single URL: `psql "$DATABASE_URL" -f db/migrations/001_full_schema.sql`.
+
+If you skip this, tables are still created or patched when the app runs and hits the corresponding APIs — see [`db/migrations/README.md`](./db/migrations/README.md).
 
 ### 4. Run the app
 
@@ -142,7 +144,7 @@ Layout convention: route entrypoints under `src/app/*`, domain UI under `src/mod
 
 - **AWS S3** — Not integrated as the primary blob store in this codebase; architecture doc describes the target upload flow.
 - **External AI extraction service** — Not implemented as a separate HTTP integration; assignment diagram shows the intended pattern.
-- **`gender` / `client` DDL** — Versioned here as [`db/migrations/001_gender_and_client.sql`](./db/migrations/001_gender_and_client.sql); not duplicated inside `ensure*Schema` functions yet.
+- **Baseline SQL** — [`db/migrations/001_full_schema.sql`](./db/migrations/001_full_schema.sql) for greenfield DBs; runtime `ensure*Schema` may still apply small patches on existing databases.
 - **End-to-end automated migration runner** — No `npm run migrate` CLI; schema is applied by the app and/or manual `psql` per `db/migrations/README.md`.
 - **Production hardening** — Rate limiting, WAF, secrets manager, and backup/DR are deployment concerns, not fully codified here.
 

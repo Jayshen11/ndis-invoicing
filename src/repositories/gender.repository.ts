@@ -31,8 +31,7 @@ function genderListWhereClause(filters: GenderListFilters) {
   const statusPredicate = getStatusPredicate(filters.status);
 
   return sql`
-    coalesce(g.is_deleted, false) = false
-      and ${statusPredicate}
+    ${statusPredicate}
       and (
         ${filters.search} = ''
         or g.label ilike ${searchPattern} escape '\'
@@ -70,8 +69,7 @@ export async function listGenderRows(
       g.label,
       g.created_at::text as created_at,
       g.updated_at::text as updated_at,
-      g.deactivated_at::text as deactivated_at,
-      coalesce(g.is_deleted, false) as is_deleted
+      g.deactivated_at::text as deactivated_at
     from gender g
     where ${whereClause}
     order by lower(g.label) asc, g.id asc
@@ -82,7 +80,7 @@ export async function listGenderRows(
   return result.rows;
 }
 
-/** Non-deleted row with same code ignoring case, if any. */
+/** Existing row with same code ignoring case, if any (unique on `code` enforces this in DB). */
 export async function findConflictingGenderIdByCodeCaseInsensitive(
   code: string,
   excludeGenderId?: number,
@@ -94,15 +92,13 @@ export async function findConflictingGenderIdByCodeCaseInsensitive(
       ? await sql<{ id: number }>`
           select id
           from gender
-          where coalesce(is_deleted, false) = false
-            and lower(code) = lower(${trimmed})
+          where lower(code) = lower(${trimmed})
           limit 1
         `.execute(db)
       : await sql<{ id: number }>`
           select id
           from gender
-          where coalesce(is_deleted, false) = false
-            and id <> ${excludeGenderId}
+          where id <> ${excludeGenderId}
             and lower(code) = lower(${trimmed})
           limit 1
         `.execute(db);
@@ -120,11 +116,9 @@ export async function getGenderRowById(
       g.label,
       g.created_at::text as created_at,
       g.updated_at::text as updated_at,
-      g.deactivated_at::text as deactivated_at,
-      coalesce(g.is_deleted, false) as is_deleted
+      g.deactivated_at::text as deactivated_at
     from gender g
     where g.id = ${genderId}
-      and coalesce(g.is_deleted, false) = false
     limit 1
   `.execute(db);
 
@@ -138,14 +132,12 @@ export async function insertGenderRow(
     insert into gender (
       code,
       label,
-      deactivated_at,
-      is_deleted
+      deactivated_at
     )
     values (
       ${input.code},
       ${input.label},
-      ${input.deactivated_at},
-      false
+      ${input.deactivated_at}
     )
     returning
       id,
@@ -153,8 +145,7 @@ export async function insertGenderRow(
       label,
       created_at::text as created_at,
       updated_at::text as updated_at,
-      deactivated_at::text as deactivated_at,
-      coalesce(is_deleted, false) as is_deleted
+      deactivated_at::text as deactivated_at
   `.execute(db);
 
   const createdGender = result.rows[0];
@@ -181,15 +172,13 @@ export async function updateGenderRow(
         else coalesce(deactivated_at, now())
       end
     where id = ${genderId}
-      and coalesce(is_deleted, false) = false
     returning
       id,
       code,
       label,
       created_at::text as created_at,
       updated_at::text as updated_at,
-      deactivated_at::text as deactivated_at,
-      coalesce(is_deleted, false) as is_deleted
+      deactivated_at::text as deactivated_at
   `.execute(db);
 
   return result.rows[0];
@@ -201,18 +190,17 @@ export async function markGenderRowDeleted(
   const result = await sql<GenderRow>`
     update gender
     set
-      is_deleted = true,
+      deactivated_at = coalesce(deactivated_at, now()),
       updated_at = now()
     where id = ${genderId}
-      and coalesce(is_deleted, false) = false
+      and deactivated_at is null
     returning
       id,
       code,
       label,
       created_at::text as created_at,
       updated_at::text as updated_at,
-      deactivated_at::text as deactivated_at,
-      coalesce(is_deleted, false) as is_deleted
+      deactivated_at::text as deactivated_at
   `.execute(db);
 
   return result.rows[0];

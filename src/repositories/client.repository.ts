@@ -30,9 +30,7 @@ export async function listClientRows(): Promise<ClientRow[]> {
       c.deactivated_at::text as deactivated_at,
       c.deleted_at::text as deleted_at
     from client c
-    left join gender g
-      on g.id = c.gender_id
-      and coalesce(g.is_deleted, false) = false
+    left join gender g on g.id = c.gender_id
     where c.deleted_at is null
     order by c.last_name asc, c.first_name asc, c.id asc
   `.execute(db);
@@ -263,7 +261,6 @@ export async function activeGenderExists(genderId: number): Promise<boolean> {
       from gender
       where id = ${genderId}
         and deactivated_at is null
-        and coalesce(is_deleted, false) = false
     ) as exists
   `.execute(db);
 
