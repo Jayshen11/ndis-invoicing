@@ -279,6 +279,33 @@ export type ProviderOptionRow = {
   label: string;
 };
 
+/** Match provider by ABN digits (handles spaces in stored values). */
+export async function findActiveProviderIdByAbnDigits(
+  abnDigits: string,
+): Promise<number | null> {
+  await ensureProviderSchema();
+
+  if (abnDigits === "") {
+    return null;
+  }
+
+  const result = await sql<{ id: number }>`
+    SELECT p.id
+    FROM provider p
+    WHERE p.deleted_at IS NULL
+      AND p.deactivated_at IS NULL
+      AND regexp_replace(coalesce(p.abn, ''), '[^0-9]', '', 'g') = ${abnDigits}
+    ORDER BY p.id ASC
+    LIMIT 3
+  `.execute(db);
+
+  if (result.rows.length !== 1) {
+    return null;
+  }
+
+  return result.rows[0]!.id;
+}
+
 /** SEC: Options for filters; only id + display label. */
 export async function listProviderOptionRows(): Promise<ProviderOptionRow[]> {
   await ensureProviderSchema();

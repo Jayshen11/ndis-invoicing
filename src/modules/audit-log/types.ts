@@ -1,6 +1,7 @@
 export const AUDIT_LOG_ACTION_OPTIONS = [
   { value: "app_user.create", label: "Create App User" },
   { value: "auth.create", label: "Create Auth" },
+  { value: "auth_session.delete", label: "Delete Auth Session" },
   { value: "auth.password_update", label: "Update Auth Password" },
   { value: "client.create", label: "Create Client" },
   { value: "client.update", label: "Update Client" },
@@ -25,6 +26,7 @@ export const AUDIT_LOG_ACTION_OPTIONS = [
 export const AUDIT_LOG_ENTITY_OPTIONS = [
   { value: "app_user", label: "App User" },
   { value: "auth", label: "Auth" },
+  { value: "auth_session", label: "Auth Session" },
   { value: "client", label: "Client" },
   { value: "gender", label: "Gender" },
   { value: "invoice", label: "Invoice" },
@@ -35,6 +37,7 @@ export const AUDIT_LOG_ENTITY_OPTIONS = [
 ] as const;
 
 export const AUDIT_LOG_PERMISSION_OPTIONS = [
+  { value: "auth_sessions.delete", label: "Delete auth sessions" },
   { value: "clients.write", label: "Add or edit clients" },
   { value: "genders.write", label: "Add or edit genders" },
   { value: "invoices.write", label: "Add or edit invoices" },
@@ -73,9 +76,10 @@ export type AuditLogRow = {
   actor_user_label: string | null;
   actor_role_id: number | null;
   actor_role_label: string | null;
-  action: AuditLogActionValue;
+  /** Stored action slug; allow string so list API tolerates new actions before catalog updates. */
+  action: string;
   action_label: string;
-  permission_code: AuditLogPermissionValue | null;
+  permission_code: string | null;
   permission_label: string | null;
   entity: string;
   entity_id: string | null;

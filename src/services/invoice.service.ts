@@ -1,5 +1,8 @@
 import { ApiError } from "@/lib/api/errors";
-import type { InvoiceDetailResponse, InvoiceListFilters } from "@/modules/invoice/types";
+import type {
+  InvoiceDetailResponse,
+  InvoiceListFilters,
+} from "@/modules/invoice/types";
 import {
   countInvoiceRows,
   invoiceNumberExistsForProvider,
@@ -117,7 +120,10 @@ function parseInvoiceListFilters(
 
   return {
     invoiceNumberSearch: rawSearch,
-    clientId: parseOptionalPositiveInt(searchParams.get("client_id"), "client_id"),
+    clientId: parseOptionalPositiveInt(
+      searchParams.get("client_id"),
+      "client_id",
+    ),
     providerId: parseOptionalPositiveInt(
       searchParams.get("provider_id"),
       "provider_id",

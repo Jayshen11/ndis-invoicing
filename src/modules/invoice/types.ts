@@ -51,3 +51,38 @@ export type SelectOptionRow = {
   /** Present on client (participant) options for pricing lookups. */
   pricing_region?: string;
 };
+
+/** Lookup row for invoice line dropdowns (PDF import). */
+export type InvoicePdfExtractLookupOption = {
+  id: number;
+  label: string;
+};
+
+/** One line returned from POST /api/invoices/extract-pdf (maps into the invoice drawer). */
+export type InvoicePdfExtractLinePayload = {
+  start_date: string;
+  end_date: string;
+  rate_set_id: number | null;
+  category_id: number | null;
+  support_item_id: number | null;
+  max_rate: string | null;
+  unit: string | null;
+  input_rate: string | null;
+  categories: InvoicePdfExtractLookupOption[];
+  supportItems: InvoicePdfExtractLookupOption[];
+  rate_set_message: string | null;
+  line_warnings: string[];
+  /** Raw extracted code when the DB could not resolve a support item. */
+  raw_support_item_number: string | null;
+};
+
+export type InvoicePdfExtractResponse = {
+  client_id: number | null;
+  provider_id: number | null;
+  invoice_number: string | null;
+  invoice_date: string | null;
+  expected_amount: string | null;
+  amount: string | null;
+  lines: InvoicePdfExtractLinePayload[];
+  warnings: string[];
+};

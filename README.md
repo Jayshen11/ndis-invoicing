@@ -95,6 +95,49 @@ npm run lint
 
 ---
 
+## Senior criteria (how this repo lines up)
+
+Markers may assess **structure, tradeoffs, edge cases, consistency, performance**. This section maps the codebase to those expectations.
+
+### Codebase structure (separation of concerns)
+
+| Layer | Role in this project |
+|--------|----------------------|
+| **`src/app/api/**`** | HTTP boundary only: auth checks, parse body/query, call services, return `createSuccessResponse` / `handleRouteError`. |
+| **`src/services/**`** | Business rules, validation orchestration, `ApiError` with structured `details`, permission-sensitive workflows. |
+| **`src/repositories/**`** | Data access (Kysely/SQL), `ensure*Schema` DDL where used, no UI concerns. |
+| **`src/modules/**`** | UI and feature-specific types/components; not authoritative for business rules. |
+
+Layout convention: route entrypoints under `src/app/*`, domain UI under `src/modules/*`, business logic in `src/services/*.service.ts`, persistence in `src/repositories/*.repository.ts`.
+
+### Edge cases and validation
+
+- **Server-side validation** is the source of truth; services reject bad input with **`ApiError`** (`VALIDATION_ERROR` + field `details` where applicable).
+- **AuthZ** is enforced per route (`requirePermission`); UI gating (e.g. read-only drawers) is UX only.
+- **Defensive UX** examples: list loads do not fail entirely when optional catalogue calls fail (e.g. participants + pricing regions loaded separately); avoids treating ancillary 403/500 as fatal for the main list.
+
+### API structure and error handling
+
+- **Success:** `{ data, meta?, pagination? }` via `src/lib/api/response.ts` (`createSuccessResponse`).
+- **Errors:** `{ error: { code, message, details? } }`; unknown exceptions become generic **500** without leaking stack traces to clients (`handleRouteError`).
+- **Client:** `src/lib/client/api.ts` unwraps the same envelope for browser calls.
+
+### Data consistency strategies
+
+- **PostgreSQL** is the single system of record; relations use **foreign keys** and constraints where modeled (e.g. client gender, invoice lines).
+- **Soft delete / active flags** are used in several domains (`deactivated_at`, `deleted_at`) so lists can stay historically coherent without hard-delete cascades everywhere.
+- **RBAC** is resolved from the user–role–permission chain in the database for login/`/api/auth/me`, not from stale copies in the session alone (see comments in `app-user.repository.ts`).
+- **Audit logging** records mutating actions for traceability (see `audit-log` module).  
+- **Caveat:** not every multi-step business operation is wrapped in an explicit **DB transaction** across all services; where two writes must succeed or fail together, that is a known place to harden for production.
+
+### Performance considerations
+
+- **Paginated list APIs** (`limit` / `offset` + total) reduce payload size for large tables.
+- **Connection pooling** via `src/db/client.ts` avoids opening a new connection per request.
+- **Heavy work** (e.g. large Excel parse) runs on the server; for very large files or concurrent imports, a **queue + worker** (not implemented) would be the next scaling step — called out in tradeoffs above.
+
+---
+
 ## What is incomplete / out of scope
 
 - **AWS S3** — Not integrated as the primary blob store in this codebase; architecture doc describes the target upload flow.

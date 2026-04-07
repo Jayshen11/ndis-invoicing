@@ -325,6 +325,23 @@ export async function resolveRbacRoleTableName(): Promise<RbacRoleTableName> {
   }
 }
 
+/** Label for a role id (e.g. audit log actor attribution). */
+export async function getRbacRoleLabelById(
+  roleId: number,
+): Promise<string | null> {
+  await ensureRbacRoleSchemaPatches();
+  const table = await resolveRbacRoleTableName();
+
+  const result = await sql<{ label: string }>`
+    select r.label
+    from ${sql.table(table)} r
+    where r.id = ${roleId}
+    limit 1
+  `.execute(db);
+
+  return result.rows[0]?.label ?? null;
+}
+
 type UserRoleDbRow = Omit<UserRoleRow, "permissions" | "permission_ids"> & {
   permissions: string | null;
   permission_ids: string | null;

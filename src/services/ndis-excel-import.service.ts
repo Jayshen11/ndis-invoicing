@@ -120,12 +120,17 @@ function assertConsistentRateSetImportRows(
     const prev = categoryByItem.get(r.itemNumber);
 
     if (prev !== undefined && prev !== r.categoryNumber) {
-      throw new ApiError(400, "INCONSISTENT_ITEM_CATEGORY", "Validation failed.", [
-        {
-          field: "file",
-          message: `Support item ${r.itemNumber} appears under more than one category number in the file.`,
-        },
-      ]);
+      throw new ApiError(
+        400,
+        "INCONSISTENT_ITEM_CATEGORY",
+        "Validation failed.",
+        [
+          {
+            field: "file",
+            message: `Support item ${r.itemNumber} appears under more than one category number in the file.`,
+          },
+        ],
+      );
     }
 
     categoryByItem.set(r.itemNumber, r.categoryNumber);

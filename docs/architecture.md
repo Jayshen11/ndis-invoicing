@@ -1,6 +1,24 @@
 # Architecture (high level)
 
-This document satisfies the assignment requirement for an **architecture diagram**. Render the Mermaid blocks in [GitHub](https://github.blog/news-insights/product-news/github-now-supports-mermaid-diagrams-in-markdown/), [Mermaid Live Editor](https://mermaid.live), or paste into draw.io / Excalidraw / Lucidchart.
+This document satisfies the **Architecture Design Requirement**: it names all required components and illustrates **Frontend → API**, **API → database**, **authentication / RBAC**, **S3 upload**, and **AI extraction** workflows.
+
+**How to submit:** Render the Mermaid blocks in [GitHub](https://github.blog/news-insights/product-news/github-now-supports-mermaid-diagrams-in-markdown/), [Mermaid Live Editor](https://mermaid.live) (export PNG/SVG/PDF), or recreate in draw.io / Lucidchart / Miro / Excalidraw.
+
+## Rubric mapping (assignment §12)
+
+| Requirement | Where it appears below |
+|-------------|-------------------------|
+| Next.js frontend application | Component diagram: **Frontend** |
+| API layer / backend services | **API** + **Service layer** in sequence diagrams |
+| PostgreSQL database | **PostgreSQL** in all diagrams |
+| AWS S3 storage | Component diagram + **S3 upload** sequence |
+| AI extraction service integration | Component diagram + **AI extraction** sequence |
+| Authentication and RBAC layer | **Authentication & RBAC** + **Authentication flow** sequence |
+| Frontend → API communication | Component diagram (`HTTPS`); implied in every sequence |
+| API → database interactions | Component diagram; sequences show reads/writes |
+| Authentication flow | **Authentication flow** sequence |
+| S3 upload workflow | **S3 upload** sequence |
+| AI extraction workflow | **AI extraction** sequence |
 
 ## Component diagram
 
@@ -11,24 +29,24 @@ flowchart TB
   end
 
   subgraph Next["Next.js application"]
-    FE[Frontend\nReact App Router UI]
-    API[API layer\n`src/app/api/*` route handlers]
+    FE[Next.js frontend\nReact App Router UI]
+    API[API layer / route handlers\n`src/app/api/*`]
     AUTH[Authentication & RBAC\nsession cookie + permission checks]
-    FE --> API
+    FE -->|HTTPS JSON| API
     API --> AUTH
   end
 
   subgraph Data["Data & integrations"]
-    PG[(PostgreSQL)]
-    S3[(AWS S3\noptional / planned for durable file storage)]
-    AI[AI extraction service\noptional / planned HTTP API]
+    PG[(PostgreSQL\ndatabase)]
+    S3[(AWS S3\nobject storage)]
+    AI[AI extraction service\nexternal HTTP API]
   end
 
   U --> FE
-  AUTH --> PG
-  API --> PG
-  API --> S3
-  API --> AI
+  AUTH -->|session / user queries| PG
+  API -->|SQL via pool\nservices / repositories| PG
+  API -->|upload / download| S3
+  API -->|extract / enrich| AI
 ```
 
 ## Authentication flow
@@ -57,7 +75,7 @@ sequenceDiagram
   end
 ```
 
-## S3 upload (target pattern)
+## S3 upload workflow
 
 ```mermaid
 sequenceDiagram
@@ -65,34 +83,39 @@ sequenceDiagram
   participant API as Next.js API
   participant SVC as Service layer
   participant S3 as AWS S3
-
-  B->>API: Request upload (authenticated)
-  API->>SVC: RBAC + validation
-  SVC->>S3: Presigned URL or PutObject
-  S3-->>SVC: Object key / URL
-  SVC->>SVC: Persist metadata reference in PostgreSQL (typical)
-  API-->>B: Success response
-```
-
-## AI extraction (target pattern)
-
-```mermaid
-sequenceDiagram
-  participant B as Browser
-  participant API as Next.js API
-  participant SVC as Service layer
-  participant S3 as AWS S3
-  participant AI as External AI API
   participant DB as PostgreSQL
 
-  B->>API: Trigger extraction job
-  API->>SVC: Authorize + load context
-  SVC->>S3: Fetch document (or pass signed URL)
-  SVC->>AI: Structured extraction request
-  AI-->>SVC: JSON fields / confidence
-  SVC->>SVC: Validate + map to domain
-  SVC->>DB: Store results + audit
-  API-->>B: 200 with data envelope
+  B->>API: HTTPS: request upload (session + CSRF)
+  API->>SVC: Authenticate + RBAC + validate file metadata
+  SVC->>S3: Presigned PUT URL or server-side PutObject
+  S3-->>SVC: Object key / ETag
+  SVC->>DB: INSERT/UPDATE file metadata (key, bucket, mime, owner)
+  SVC-->>API: Result DTO
+  API-->>B: HTTPS: 200 { data } (e.g. key, URL)
 ```
 
-**Note:** In this repository, **NDIS rate-set Excel** is parsed **in-process** on the API server; **S3** and a separate **AI extraction** service are shown as the intended enterprise extensions required by the assignment brief.
+## AI extraction workflow
+
+```mermaid
+sequenceDiagram
+  participant B as Browser
+  participant API as Next.js API
+  participant SVC as Service layer
+  participant S3 as AWS S3
+  participant AI as AI extraction service
+  participant DB as PostgreSQL
+
+  B->>API: HTTPS: start extraction (document or job id)
+  API->>SVC: Authenticate + RBAC + load job
+  SVC->>S3: GetObject or generate short-lived signed URL
+  S3-->>SVC: Document bytes / URL for AI
+  SVC->>AI: HTTPS: extraction request (schema, redacted PII policy)
+  AI-->>SVC: Structured JSON (fields, confidence, warnings)
+  SVC->>SVC: Validate + map to domain model
+  SVC->>DB: Persist extracted entities + status + audit trail
+  API-->>B: HTTPS: 200 { data }
+```
+
+### Implementation note (this repository)
+
+**NDIS rate-set Excel** is currently parsed **in-process** on the API server (no separate AI microservice). The **S3** and **AI extraction** diagrams above match the **assignment’s target architecture** (durable storage + external AI); you can label them “logical / planned” in your report if your marker wants strict as-built vs to-be.

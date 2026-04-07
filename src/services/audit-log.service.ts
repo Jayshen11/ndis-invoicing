@@ -1,5 +1,7 @@
 import { ApiError } from "@/lib/api/errors";
+import type { ApiAuthContext } from "@/lib/api/auth";
 import type {
+  AuditActor,
   AuditLogActionValue,
   AuditLogChangeDiff,
   AuditLogEntityValue,
@@ -20,6 +22,7 @@ import {
   listAuditLogRows,
   resolveFallbackAuditActor,
 } from "@/repositories/audit-log.repository";
+import { getRbacRoleLabelById } from "@/repositories/user-role.repository";
 
 const DEFAULT_LIST_LIMIT = 20;
 const MAX_LIST_LIMIT = 200;
@@ -35,6 +38,9 @@ const AUDIT_REDACTED_KEYS = new Set([
   "access_token",
   "secret",
 ]);
+
+// SEC: Omit non-semantic bookkeeping fields from stored payload and change diffs.
+const AUDIT_IGNORED_CHANGE_KEYS = new Set(["updated_at"]);
 
 const ACTION_LABEL_BY_VALUE = new Map(
   AUDIT_LOG_ACTION_OPTIONS.map((option) => [option.value, option.label]),
@@ -56,6 +62,29 @@ export function listAuditLogEntityOptions(): AuditLogOption[] {
 
 export function listAuditLogPermissionOptions(): AuditLogOption[] {
   return [...AUDIT_LOG_PERMISSION_OPTIONS];
+}
+
+/**
+ * SEC: Prefer this for API routes so audit rows attribute the signed-in operator,
+ * not an arbitrary fallback user from {@link resolveFallbackAuditActor}.
+ */
+export async function resolveAuditActorForApiAuth(
+  ctx: ApiAuthContext,
+): Promise<AuditActor> {
+  if (ctx.kind === "internal") {
+    return resolveFallbackAuditActor();
+  }
+
+  const { user } = ctx.payload;
+  const roleLabel = await getRbacRoleLabelById(user.roleId);
+  const name = user.fullName.trim();
+
+  return {
+    actor_user_id: user.id,
+    actor_user_label: name === "" ? user.email : name,
+    actor_role_id: user.roleId,
+    actor_role_label: roleLabel ?? "",
+  };
 }
 
 export async function listAuditLogsPage(
@@ -84,36 +113,36 @@ export async function recordAuditEvent(input: {
   entityId?: string | number | null;
   before?: unknown;
   after?: unknown;
+  /** When omitted, uses {@link resolveFallbackAuditActor} (legacy heuristic). */
+  actor?: AuditActor;
 }): Promise<void> {
   try {
-    const actor = await resolveFallbackAuditActor();
+    const actor =
+      input.actor ?? (await resolveFallbackAuditActor());
     const beforeRecord = toAuditRecord(input.before);
     const afterRecord = toAuditRecord(input.after);
     const changesDiff = createAuditDiff(beforeRecord, afterRecord);
 
+    // SEC: Skip no-op updates — same data after sanitization should not create noise rows.
+    if (
+      beforeRecord !== null &&
+      afterRecord !== null &&
+      changesDiff === null
+    ) {
+      return;
+    }
+
     const row: AuditLogInsertInput = {
       ...actor,
       action: input.action,
-      action_label: getKnownLabel(
-        ACTION_LABEL_BY_VALUE,
-        input.action,
-        "audit action",
-      ),
+      action_label: auditLabelFromMap(ACTION_LABEL_BY_VALUE, input.action),
       permission_code: input.permission ?? null,
       permission_label:
         input.permission === undefined || input.permission === null
           ? null
-          : getKnownLabel(
-              PERMISSION_LABEL_BY_VALUE,
-              input.permission,
-              "audit permission",
-            ),
+          : auditLabelFromMap(PERMISSION_LABEL_BY_VALUE, input.permission),
       entity: input.entity,
-      entity_label: getKnownLabel(
-        ENTITY_LABEL_BY_VALUE,
-        input.entity,
-        "audit entity",
-      ),
+      entity_label: auditLabelFromMap(ENTITY_LABEL_BY_VALUE, input.entity),
       entity_id:
         input.entityId === undefined || input.entityId === null
           ? null
@@ -252,18 +281,12 @@ function parseOptionalEnum<TValue extends string>(
   return value;
 }
 
-function getKnownLabel<TValue extends string>(
+/** SEC: Never throw — unknown slugs still produce a row (forward-compatible catalog). */
+function auditLabelFromMap<TValue extends string>(
   map: ReadonlyMap<TValue, string>,
   value: TValue,
-  kind: string,
 ): string {
-  const label = map.get(value);
-
-  if (!label) {
-    throw new Error(`Unknown ${kind}: ${value}`);
-  }
-
-  return label;
+  return map.get(value) ?? value;
 }
 
 function createAuditDiff(
@@ -317,6 +340,10 @@ function sanitizeAuditRecord(
 
   for (const [key, value] of Object.entries(input)) {
     const nextKey = toSnakeCase(key);
+
+    if (AUDIT_IGNORED_CHANGE_KEYS.has(nextKey)) {
+      continue;
+    }
 
     if (AUDIT_REDACTED_KEYS.has(key)) {
       output[nextKey] = "[REDACTED]";

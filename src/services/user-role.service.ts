@@ -31,6 +31,7 @@ import {
   getRbacPermissionGatewayIdsSorted,
   RBAC_PERMISSION_GATEWAY_ID_BY_CODE,
 } from "@/modules/user-role/permissions-catalog";
+import type { AuditActor } from "@/modules/audit-log/types";
 import { recordAuditEvent } from "@/services/audit-log.service";
 
 const ALLOWED_CREATE_FIELDS = new Set([
@@ -177,6 +178,7 @@ export async function getUserRole(
 export async function updateUserRole(
   userRoleIdValue: string,
   payload: unknown,
+  auditActor?: AuditActor,
 ): Promise<UserRoleRow> {
   const userRoleId = parseUserRoleId(userRoleIdValue);
   const patch = validateUpdateUserRolePayload(payload);
@@ -228,6 +230,7 @@ export async function updateUserRole(
     );
 
     await recordAuditEvent({
+      actor: auditActor,
       action: "rbac_role.update",
       entity: "rbac_role",
       entityId: current.id,

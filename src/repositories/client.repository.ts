@@ -197,6 +197,47 @@ export async function listClientOptionRows(): Promise<ClientOptionRow[]> {
   return result.rows;
 }
 
+/** Match participant by NDIS number digits (handles spaces/dashes in stored values). */
+export async function findActiveClientIdByNdisDigits(
+  ndisDigits: string,
+): Promise<number | null> {
+  if (ndisDigits === "") {
+    return null;
+  }
+
+  const result = await sql<{ id: number }>`
+    SELECT c.id
+    FROM client c
+    WHERE c.deleted_at IS NULL
+      AND c.deactivated_at IS NULL
+      AND regexp_replace(coalesce(c.ndis_number, ''), '[^0-9]', '', 'g') = ${ndisDigits}
+    ORDER BY c.id ASC
+    LIMIT 3
+  `.execute(db);
+
+  if (result.rows.length !== 1) {
+    return null;
+  }
+
+  return result.rows[0]!.id;
+}
+
+export async function getClientPricingRegionByClientId(
+  clientId: number,
+): Promise<string | null> {
+  const result = await sql<{ pricing_region: string | null }>`
+    SELECT c.pricing_region
+    FROM client c
+    WHERE c.id = ${clientId}
+      AND c.deleted_at IS NULL
+    LIMIT 1
+  `.execute(db);
+
+  const raw = result.rows[0]?.pricing_region?.trim();
+
+  return raw && raw !== "" ? raw : null;
+}
+
 export async function softDeleteClientRow(
   clientId: number,
 ): Promise<{ id: string; deleted_at: string } | undefined> {

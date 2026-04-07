@@ -728,6 +728,45 @@ export async function listSupportItemsForCategory(
 }
 
 /**
+ * Resolve a support item within a rate set by NDIS item number (tolerates spacing differences).
+ * Returns null when missing or ambiguous.
+ */
+export async function findSupportItemInRateSetByItemNumber(
+  rateSetId: number,
+  itemNumberRaw: string,
+): Promise<{ id: number; category_id: number } | null> {
+  await ensureRateSetInvoiceSchema();
+
+  const trimmed = itemNumberRaw.trim();
+
+  if (trimmed === "") {
+    return null;
+  }
+
+  const compact = trimmed.replace(/\s+/g, "").toLowerCase();
+
+  const result = await sql<{ id: number; category_id: number }>`
+    SELECT s.id, s.category_id
+    FROM rate_set_support_item s
+    WHERE s.rate_set_id = ${rateSetId}
+      AND s.deleted_at IS NULL
+      AND s.deactivated_at IS NULL
+      AND (
+        trim(s.item_number) = ${trimmed}
+        OR replace(lower(trim(s.item_number)), ' ', '') = ${compact}
+      )
+    ORDER BY s.id ASC
+    LIMIT 4
+  `.execute(db);
+
+  if (result.rows.length !== 1) {
+    return null;
+  }
+
+  return result.rows[0]!;
+}
+
+/**
  * Price rows overlapping item service range for region.
  * Prefers rows with type_id IS NULL (legacy / default); otherwise returns all matches (caller may treat as ambiguous).
  */

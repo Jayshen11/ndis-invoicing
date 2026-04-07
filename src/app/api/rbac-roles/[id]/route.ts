@@ -5,6 +5,7 @@ import {
   createSuccessResponse,
   handleRouteError,
 } from "@/lib/api/response";
+import { resolveAuditActorForApiAuth } from "@/services/audit-log.service";
 import {
   getUserRole,
   markUserRoleDeleted,
@@ -51,7 +52,8 @@ export async function PATCH(
 
     const { id } = await context.params;
     const payload = await readJsonRequestBody(request);
-    const row = await updateUserRole(id, payload);
+    const auditActor = await resolveAuditActorForApiAuth(auth);
+    const row = await updateUserRole(id, payload, auditActor);
 
     return createSuccessResponse(row);
   } catch (error) {

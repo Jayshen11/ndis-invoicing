@@ -9,6 +9,7 @@ import {
   listAuthSessionRows,
   revokeAuthSessionById,
 } from "@/repositories/auth-session.repository";
+import { recordAuditEvent } from "@/services/audit-log.service";
 
 const USER_SEARCH_MAX_LENGTH = 120;
 const DEFAULT_LIST_LIMIT = 20;
@@ -231,4 +232,13 @@ export async function deleteAuthSession(sessionIdRaw: string): Promise<void> {
   if (!removed) {
     throw new ApiError(404, "NOT_FOUND", "Session not found.");
   }
+
+  await recordAuditEvent({
+    action: "auth_session.delete",
+    entity: "auth_session",
+    permission: "auth_sessions.delete",
+    entityId: sessionId,
+    before: null,
+    after: null,
+  });
 }

@@ -31,6 +31,173 @@ export async function ensureAuditLogSchema(): Promise<void> {
   return auditLogSchemaPromise;
 }
 
+/**
+ * Align legacy / gateway `audit_log` tables (e.g. actor_user_id) with this app's
+ * column names (user_id). CREATE TABLE IF NOT EXISTS leaves an existing table unchanged.
+ */
+async function patchAuditLogLegacyColumnNames(): Promise<void> {
+  await sql`
+    DO $audit_patch$
+    BEGIN
+      IF to_regclass('public.audit_log') IS NOT NULL THEN
+        IF EXISTS (
+          SELECT 1
+          FROM information_schema.columns c
+          WHERE c.table_schema = 'public'
+            AND c.table_name = 'audit_log'
+            AND c.column_name = 'actor_user_id'
+        ) AND NOT EXISTS (
+          SELECT 1
+          FROM information_schema.columns c
+          WHERE c.table_schema = 'public'
+            AND c.table_name = 'audit_log'
+            AND c.column_name = 'user_id'
+        ) THEN
+          ALTER TABLE public.audit_log RENAME COLUMN actor_user_id TO user_id;
+        END IF;
+
+        IF EXISTS (
+          SELECT 1
+          FROM information_schema.columns c
+          WHERE c.table_schema = 'public'
+            AND c.table_name = 'audit_log'
+            AND c.column_name = 'actor_user_label'
+        ) AND NOT EXISTS (
+          SELECT 1
+          FROM information_schema.columns c
+          WHERE c.table_schema = 'public'
+            AND c.table_name = 'audit_log'
+            AND c.column_name = 'user_label'
+        ) THEN
+          ALTER TABLE public.audit_log RENAME COLUMN actor_user_label TO user_label;
+        END IF;
+
+        IF EXISTS (
+          SELECT 1
+          FROM information_schema.columns c
+          WHERE c.table_schema = 'public'
+            AND c.table_name = 'audit_log'
+            AND c.column_name = 'actor_role_id'
+        ) AND NOT EXISTS (
+          SELECT 1
+          FROM information_schema.columns c
+          WHERE c.table_schema = 'public'
+            AND c.table_name = 'audit_log'
+            AND c.column_name = 'role_id'
+        ) THEN
+          ALTER TABLE public.audit_log RENAME COLUMN actor_role_id TO role_id;
+        END IF;
+
+        IF EXISTS (
+          SELECT 1
+          FROM information_schema.columns c
+          WHERE c.table_schema = 'public'
+            AND c.table_name = 'audit_log'
+            AND c.column_name = 'actor_role_label'
+        ) AND NOT EXISTS (
+          SELECT 1
+          FROM information_schema.columns c
+          WHERE c.table_schema = 'public'
+            AND c.table_name = 'audit_log'
+            AND c.column_name = 'role_label'
+        ) THEN
+          ALTER TABLE public.audit_log RENAME COLUMN actor_role_label TO role_label;
+        END IF;
+
+        IF EXISTS (
+          SELECT 1
+          FROM information_schema.columns c
+          WHERE c.table_schema = 'public'
+            AND c.table_name = 'audit_log'
+            AND c.column_name = 'permission_code'
+        ) AND NOT EXISTS (
+          SELECT 1
+          FROM information_schema.columns c
+          WHERE c.table_schema = 'public'
+            AND c.table_name = 'audit_log'
+            AND c.column_name = 'permission'
+        ) THEN
+          ALTER TABLE public.audit_log RENAME COLUMN permission_code TO permission;
+        END IF;
+      END IF;
+    END
+    $audit_patch$
+  `.execute(db);
+}
+
+/** Backfill columns expected by this app when `audit_log` predates the full schema. */
+async function patchAuditLogMissingColumns(): Promise<void> {
+  await sql`
+    ALTER TABLE audit_log
+      ADD COLUMN IF NOT EXISTS user_id INTEGER NULL REFERENCES app_user (id) ON DELETE SET NULL
+  `.execute(db);
+
+  await sql`
+    ALTER TABLE audit_log
+      ADD COLUMN IF NOT EXISTS user_label TEXT NULL
+  `.execute(db);
+
+  await sql`
+    ALTER TABLE audit_log
+      ADD COLUMN IF NOT EXISTS role_id INTEGER NULL
+  `.execute(db);
+
+  await sql`
+    ALTER TABLE audit_log
+      ADD COLUMN IF NOT EXISTS role_label TEXT NULL
+  `.execute(db);
+
+  await sql`
+    ALTER TABLE audit_log
+      ADD COLUMN IF NOT EXISTS action TEXT NULL
+  `.execute(db);
+
+  await sql`
+    ALTER TABLE audit_log
+      ADD COLUMN IF NOT EXISTS action_label TEXT NULL
+  `.execute(db);
+
+  await sql`
+    ALTER TABLE audit_log
+      ADD COLUMN IF NOT EXISTS permission TEXT NULL
+  `.execute(db);
+
+  await sql`
+    ALTER TABLE audit_log
+      ADD COLUMN IF NOT EXISTS permission_label TEXT NULL
+  `.execute(db);
+
+  await sql`
+    ALTER TABLE audit_log
+      ADD COLUMN IF NOT EXISTS entity TEXT NULL
+  `.execute(db);
+
+  await sql`
+    ALTER TABLE audit_log
+      ADD COLUMN IF NOT EXISTS entity_label TEXT NULL
+  `.execute(db);
+
+  await sql`
+    ALTER TABLE audit_log
+      ADD COLUMN IF NOT EXISTS entity_id TEXT NULL
+  `.execute(db);
+
+  await sql`
+    ALTER TABLE audit_log
+      ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  `.execute(db);
+
+  await sql`
+    ALTER TABLE audit_log
+      ADD COLUMN IF NOT EXISTS before_data JSONB NULL
+  `.execute(db);
+
+  await sql`
+    ALTER TABLE audit_log
+      ADD COLUMN IF NOT EXISTS after_data JSONB NULL
+  `.execute(db);
+}
+
 async function runAuditLogSchemaPatches(): Promise<void> {
   await Promise.all([ensureAppUserSchema(), ensureRbacRoleSchemaPatches()]);
 
@@ -57,6 +224,9 @@ async function runAuditLogSchemaPatches(): Promise<void> {
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     )
   `.execute(db);
+
+  await patchAuditLogLegacyColumnNames();
+  await patchAuditLogMissingColumns();
 
   await sql`
     ALTER TABLE audit_log
@@ -233,7 +403,7 @@ export async function listAuditLogRows(
       l.permission_label,
       l.entity_label as entity,
       l.entity_id,
-      coalesce(l.payload, l.after_data, l.before_data)::text as payload,
+      l.payload::text as payload,
       l.changes_diff::text as changes_diff,
       l.before,
       l.after,

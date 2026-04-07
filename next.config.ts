@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // SEC: pdf-parse pulls pdf.js; keep it external so the server bundle does not break.
+  serverExternalPackages: ["pdf-parse"],
   async redirects() {
     return [
       { source: "/", destination: "/dashboard", permanent: true },

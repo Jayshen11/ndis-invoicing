@@ -1,9 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
   InvoiceDetailResponse,
   InvoiceListRow,
+  InvoicePdfExtractLinePayload,
+  InvoicePdfExtractResponse,
   SelectOptionRow,
 } from "@/modules/invoice/types";
 import {
@@ -41,6 +43,27 @@ type InvoiceLineForm = {
   loadingRateSet: boolean;
   loadingMaxRate: boolean;
 };
+
+function mapExtractedLineToForm(
+  line: InvoicePdfExtractLinePayload,
+): InvoiceLineForm {
+  return {
+    key: globalThis.crypto?.randomUUID?.() ?? String(Date.now() + Math.random()),
+    start_date: line.start_date,
+    end_date: line.end_date,
+    rate_set_id: line.rate_set_id ?? "",
+    category_id: line.category_id ?? "",
+    support_item_id: line.support_item_id ?? "",
+    max_rate: line.max_rate ?? "",
+    unit: line.unit ?? "",
+    input_rate: line.input_rate ?? "",
+    categories: line.categories,
+    supportItems: line.supportItems,
+    rateSetMessage: line.rate_set_message,
+    loadingRateSet: false,
+    loadingMaxRate: false,
+  };
+}
 
 function newLine(): InvoiceLineForm {
   return {
@@ -218,6 +241,11 @@ export function InvoicesManager() {
   const [drawerError, setDrawerError] = useState<string | null>(null);
   const [drawerFieldErrors, setDrawerFieldErrors] =
     useState<FieldErrors<string>>({});
+  const [pdfImportLoading, setPdfImportLoading] = useState(false);
+  const [pdfImportWarnings, setPdfImportWarnings] = useState<string[] | null>(
+    null,
+  );
+  const pdfFileInputRef = useRef<HTMLInputElement | null>(null);
 
   const selectedPricingRegion = useMemo(() => {
     if (formClientId === "") {
@@ -429,6 +457,7 @@ export function InvoicesManager() {
     setLines([]);
     setDrawerError(null);
     setDrawerFieldErrors({});
+    setPdfImportWarnings(null);
     setDrawerOpen(true);
   }
 
@@ -441,12 +470,14 @@ export function InvoicesManager() {
     setSaveSubmitting(false);
     setDrawerError(null);
     setDrawerFieldErrors({});
+    setPdfImportWarnings(null);
   }
 
   async function openEditDrawer(invoiceId: number) {
     setLoadingEditId(invoiceId);
     setDrawerError(null);
     setDrawerFieldErrors({});
+    setPdfImportWarnings(null);
 
     try {
       const detail = await fetchApiData<InvoiceDetailResponse>(`/api/invoices/${invoiceId}`);
@@ -875,6 +906,64 @@ export function InvoicesManager() {
     }
   }
 
+  async function handleImportPdf(file: File) {
+    if (!canWriteInvoices || drawerReadOnly) {
+      return;
+    }
+
+    setPdfImportLoading(true);
+    setPdfImportWarnings(null);
+    setDrawerError(null);
+
+    try {
+      const body = new FormData();
+
+      body.set("file", file);
+
+      const data = await fetchApiData<InvoicePdfExtractResponse>(
+        "/api/invoices/extract-pdf",
+        { method: "POST", body },
+      );
+
+      if (data.client_id !== null) {
+        setFormClientId(String(data.client_id));
+      }
+
+      if (data.provider_id !== null) {
+        setFormProviderId(String(data.provider_id));
+      }
+
+      if (data.invoice_number !== null && data.invoice_number !== "") {
+        setFormInvoiceNumber(data.invoice_number);
+      }
+
+      if (data.invoice_date !== null && data.invoice_date !== "") {
+        setFormInvoiceDate(data.invoice_date);
+      }
+
+      if (data.expected_amount !== null && data.expected_amount !== "") {
+        setFormExpectedAmount(data.expected_amount);
+      }
+
+      setLines(
+        data.lines.length > 0
+          ? data.lines.map(mapExtractedLineToForm)
+          : [newLine()],
+      );
+      setDrawerFieldErrors({});
+
+      if (data.warnings.length > 0) {
+        setPdfImportWarnings(data.warnings);
+      }
+
+      setToastMessage("Imported from PDF — review fields before saving.");
+    } catch (error) {
+      setDrawerError(getRequestErrorMessage(error, "PDF import failed."));
+    } finally {
+      setPdfImportLoading(false);
+    }
+  }
+
   async function handleDelete(row: InvoiceListRow) {
     if (!canDeleteInvoices) {
       return;
@@ -1215,10 +1304,37 @@ export function InvoicesManager() {
                 </h3>
               </div>
               <div className="flex flex-wrap items-center gap-2">
+                {!ro && canWriteInvoices ? (
+                  <>
+                    <input
+                      ref={pdfFileInputRef}
+                      type="file"
+                      accept="application/pdf,.pdf"
+                      className="hidden"
+                      onChange={(e) => {
+                        const nextFile = e.target.files?.[0];
+                        e.target.value = "";
+
+                        if (nextFile) {
+                          void handleImportPdf(nextFile);
+                        }
+                      }}
+                    />
+                    <button
+                      type="button"
+                      disabled={saveSubmitting || pdfImportLoading}
+                      onClick={() => pdfFileInputRef.current?.click()}
+                      aria-label="Import invoice fields from a PDF file"
+                      className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-900 transition hover:bg-slate-50 disabled:opacity-60"
+                    >
+                      {pdfImportLoading ? "Importing…" : "Import From PDF"}
+                    </button>
+                  </>
+                ) : null}
                 <button
                   type="button"
                   onClick={closeDrawer}
-                  disabled={saveSubmitting}
+                  disabled={saveSubmitting || pdfImportLoading}
                   className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-900 transition hover:bg-slate-50 disabled:opacity-60"
                 >
                   Cancel
@@ -1226,7 +1342,7 @@ export function InvoicesManager() {
                 {!ro && showSaveAsDraft ? (
                   <button
                     type="button"
-                    disabled={saveSubmitting}
+                    disabled={saveSubmitting || pdfImportLoading}
                     onClick={() => void submitInvoice("drafted")}
                     className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-800 transition hover:bg-slate-50 disabled:opacity-60"
                   >
@@ -1236,7 +1352,7 @@ export function InvoicesManager() {
                 {!ro ? (
                   <button
                     type="button"
-                    disabled={saveSubmitting}
+                    disabled={saveSubmitting || pdfImportLoading}
                     onClick={() => void submitInvoice("completed")}
                     className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-500 disabled:opacity-60"
                   >
@@ -1247,6 +1363,19 @@ export function InvoicesManager() {
             </div>
 
             <div className="flex flex-1 flex-col overflow-y-auto px-5 py-4">
+              {pdfImportWarnings !== null && pdfImportWarnings.length > 0 ? (
+                <div
+                  role="status"
+                  className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950"
+                >
+                  <p className="font-medium text-amber-900">PDF import notes</p>
+                  <ul className="mt-2 list-disc space-y-1 pl-5 text-amber-900/90">
+                    {pdfImportWarnings.map((w, i) => (
+                      <li key={i}>{w}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
               <p className="text-sm font-semibold text-slate-800">
                 Invoice level details
               </p>
