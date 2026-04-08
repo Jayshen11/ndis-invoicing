@@ -1,3 +1,8 @@
+/**
+ * Support items under a rate-set category (cascading invoice UI).
+ *
+ * **Boundary:** `invoices.read` — requires `category_id` query param.
+ */
 import type { NextRequest } from "next/server";
 import { requireApiAuth, requirePermission } from "@/lib/api/auth";
 import { ApiError } from "@/lib/api/errors";
@@ -7,6 +12,7 @@ import { listSupportItemsForCategory } from "@/repositories/rate-set-invoice.rep
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+/** `invoices.read` — `{ data }` from `listSupportItemsForCategory`. */
 export async function GET(request: NextRequest) {
   try {
     const auth = await requireApiAuth(request);

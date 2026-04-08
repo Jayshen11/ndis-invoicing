@@ -1,3 +1,8 @@
+/**
+ * Upload NDIS pricing workbook (`multipart/formData` field `file`) for an existing rate set.
+ *
+ * **Boundary:** `rate_sets.import` → `ndis-excel-import.service`; MIME/size checks here.
+ */
 import type { NextRequest } from "next/server";
 import { requireApiAuth, requirePermission } from "@/lib/api/auth";
 import { ApiError } from "@/lib/api/errors";
@@ -18,6 +23,7 @@ const ALLOWED_MIME = new Set([
   "application/octet-stream",
 ]);
 
+/** `rate_sets.import` — parses workbook and persists grid for `[id]`. */
 export async function POST(request: NextRequest, context: RouteContext) {
   try {
     const auth = await requireApiAuth(request);

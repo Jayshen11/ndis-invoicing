@@ -1,3 +1,8 @@
+/**
+ * Hard-delete an auth session row (admin cleanup); returns 204 empty body.
+ *
+ * **Boundary:** `auth_sessions.delete` → `deleteAuthSession`; distinct from `.../revoke` POST.
+ */
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { requireApiAuth, requirePermission } from "@/lib/api/auth";
@@ -11,6 +16,7 @@ type RouteContext = Readonly<{
   params: Promise<{ id: string }>;
 }>;
 
+/** `auth_sessions.delete` — 204 on success. */
 export async function DELETE(request: NextRequest, context: RouteContext) {
   try {
     const auth = await requireApiAuth(request);

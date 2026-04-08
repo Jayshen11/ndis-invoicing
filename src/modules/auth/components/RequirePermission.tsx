@@ -1,5 +1,16 @@
 "use client";
 
+/**
+ * Client-side permission gate for **pages and layouts** wrapped in `AuthSessionProvider`.
+ *
+ * **Purpose:** Avoid flashing protected UI before session/permissions are known, and send users
+ * without the right permission to `/unauthorized` (or unauthenticated users to `/login`). Use the
+ * same `permission` string codes as `requirePermission` on the matching API routes (e.g. `clients.read`).
+ *
+ * **Not security:** This is UX only. A user can still call APIs directly; the server must enforce RBAC.
+ *
+ * @see {@link useAuthSession} — loads `/api/auth/me` and exposes `user.permissions`.
+ */
 import { useAuthSession } from "@/modules/auth/components/AuthSessionProvider";
 import { useRouter } from "next/navigation";
 import { useLayoutEffect, useMemo, useRef } from "react";
@@ -10,6 +21,7 @@ type RequirePermissionProps = Readonly<{
   permission: string;
 }>;
 
+/** Shown while session is loading or while redirecting (avoids blank flash / wrong content). */
 function PermissionGateFallback() {
   return (
     <div
@@ -29,9 +41,10 @@ function PermissionGateFallback() {
 }
 
 /**
- * Waits for `/api/auth/me` (via {@link useAuthSession}), then renders `children` only if the user
- * has `permission`. Otherwise redirects to `/unauthorized` (or `/login` if there is no session).
- * SEC: UX gate only; APIs remain the source of truth for AuthZ.
+ * Renders `children` only when the session is ready **and** `session.user.permissions` includes
+ * `permission`. Uses `useLayoutEffect` + `router.replace` so redirects happen before paint when possible.
+ *
+ * SEC: UX gate only — duplicate checks with `requirePermission` on every API route that mutates data.
  */
 export function RequirePermission({
   children,

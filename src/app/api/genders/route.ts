@@ -1,3 +1,8 @@
+/**
+ * Gender catalogue — paginated list and create.
+ *
+ * **Boundary:** `genders.read` / `genders.write` → `gender.service`.
+ */
 import type { NextRequest } from "next/server";
 import { requireApiAuth, requirePermission } from "@/lib/api/auth";
 import { readJsonRequestBody } from "@/lib/api/request";
@@ -10,6 +15,7 @@ import { createGender, listGendersPage } from "@/services/gender.service";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+/** `genders.read` — paginated. */
 export async function GET(request: NextRequest) {
   try {
     const auth = await requireApiAuth(request);
@@ -31,6 +37,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
+/** `genders.write` — create catalogue row. */
 export async function POST(request: NextRequest) {
   try {
     const auth = await requireApiAuth(request);

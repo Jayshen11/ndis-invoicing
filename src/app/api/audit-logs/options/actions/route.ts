@@ -1,3 +1,8 @@
+/**
+ * Distinct audit `action` values for filter dropdowns (derived in service).
+ *
+ * **Boundary:** `audit_logs.read` → static/service options only.
+ */
 import type { NextRequest } from "next/server";
 import { requireApiAuth, requirePermission } from "@/lib/api/auth";
 import {
@@ -9,6 +14,7 @@ import { listAuditLogActionOptions } from "@/services/audit-log.service";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+/** `audit_logs.read` — returns option list in `{ data }`. */
 export async function GET(request: NextRequest) {
   try {
     const auth = await requireApiAuth(request);

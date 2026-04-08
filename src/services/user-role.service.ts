@@ -829,7 +829,7 @@ function translateRepositoryError(
     return new ApiError(
       503,
       "USER_ROLE_SCHEMA_OUT_OF_DATE",
-      "The role table is missing a column this API expects (for example label, updated_at, deactivated_at, is_deleted, or permissions). " +
+      "The role table is missing a column this API expects (for example label, updated_at, deactivated_at, deleted_at, or permissions). " +
         "The server normally adds these automatically unless RBAC_SKIP_DDL=1. Remove that flag or align columns with the patches in src/repositories/user-role.repository.ts.",
     );
   }

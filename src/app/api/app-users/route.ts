@@ -1,3 +1,8 @@
+/**
+ * Dashboard users (`app_user`) — paginated list and create.
+ *
+ * **Boundary:** `users.read` / `users.write` → `app-user.service`. POST may return `generatedPassword` in body when auto-generated.
+ */
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { requireApiAuth, requirePermission } from "@/lib/api/auth";
@@ -33,6 +38,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
+/** `users.write` — create user; 201 with optional plaintext password for admin copy. */
 export async function POST(request: NextRequest) {
   try {
     const auth = await requireApiAuth(request);

@@ -1,3 +1,8 @@
+/**
+ * NDIS categories available under a rate set (invoice line helpers).
+ *
+ * **Boundary:** `invoices.read` — requires `rate_set_id` query param.
+ */
 import type { NextRequest } from "next/server";
 import { requireApiAuth, requirePermission } from "@/lib/api/auth";
 import { ApiError } from "@/lib/api/errors";
@@ -7,6 +12,7 @@ import { listRateSetCategories } from "@/repositories/rate-set-invoice.repositor
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+/** `invoices.read` — `{ data }` list from `listRateSetCategories`. */
 export async function GET(request: NextRequest) {
   try {
     const auth = await requireApiAuth(request);

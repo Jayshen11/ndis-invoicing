@@ -1,3 +1,8 @@
+/**
+ * Single rate set — detail, update (JSON or multipart+Excel), delete.
+ *
+ * **Boundary:** `rate-set.service`. PATCH branches on `Content-Type` like collection POST.
+ */
 import type { NextRequest } from "next/server";
 import { requireApiAuth, requirePermission } from "@/lib/api/auth";
 import { readJsonRequestBody } from "@/lib/api/request";
@@ -62,6 +67,7 @@ async function readRateSetMultipartPayload(request: NextRequest): Promise<{
   };
 }
 
+/** `rate_sets.read` — full detail for `[id]`. */
 export async function GET(request: NextRequest, context: RouteContext) {
   try {
     const auth = await requireApiAuth(request);
@@ -80,6 +86,10 @@ export async function GET(request: NextRequest, context: RouteContext) {
   }
 }
 
+/**
+ * Update rate set: multipart with `file` uses `rate_sets.import` + `updateRateSetWithExcel`;
+ * otherwise `rate_sets.write` + JSON or fields-only multipart.
+ */
 export async function PATCH(request: NextRequest, context: RouteContext) {
   try {
     const auth = await requireApiAuth(request);
@@ -120,6 +130,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   }
 }
 
+/** `rate_sets.delete` — delete rate set per service rules. */
 export async function DELETE(request: NextRequest, context: RouteContext) {
   try {
     const auth = await requireApiAuth(request);

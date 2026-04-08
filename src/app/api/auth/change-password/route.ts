@@ -1,3 +1,8 @@
+/**
+ * Authenticated user changes own password (session cookie required, no bearer).
+ *
+ * **Boundary:** Validates cookie session, then `auth-change-password.service`; JSON body.
+ */
 import type { NextRequest } from "next/server";
 import { ApiError } from "@/lib/api/errors";
 import { isWellFormedSessionId, NDIS_SESSION_COOKIE_NAME } from "@/lib/auth/session-cookie";
@@ -12,6 +17,7 @@ import { changePasswordForSessionUser } from "@/services/auth-change-password.se
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+/** Cookie session + JSON → `{ data: { success: true } }` or 401. */
 export async function POST(request: NextRequest) {
   try {
     const raw = request.cookies.get(NDIS_SESSION_COOKIE_NAME)?.value?.trim() ?? "";

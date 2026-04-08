@@ -1,3 +1,8 @@
+/**
+ * Flat RBAC permission catalog for role editors (DB-backed when seeded, else in-code fallback).
+ *
+ * **Boundary:** `user_roles.read` — see GET handler for source selection logic.
+ */
 import type { NextRequest } from "next/server";
 import { requireApiAuth, requirePermission } from "@/lib/api/auth";
 import {
@@ -16,10 +21,7 @@ import { ensureRbacRoleSchemaPatches } from "@/repositories/user-role.repository
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/**
- * Flat permission catalog (gateway shape). Served from `rbac_permission` when present;
- * otherwise falls back to the in-code catalog (same ids when seeded via schema patch).
- */
+/** `user_roles.read` — prefers `rbac_permission` rows when table non-empty, else `permissions-catalog`. */
 export async function GET(request: NextRequest) {
   try {
     const auth = await requireApiAuth(request);

@@ -1,3 +1,8 @@
+/**
+ * Form UX: whether a gender `code` is already taken (`{ exists: boolean }`).
+ *
+ * **Boundary:** `genders.write` — minimal JSON, `Cache-Control: no-store`.
+ */
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { requireApiAuth, requirePermission } from "@/lib/api/auth";
@@ -11,6 +16,7 @@ const CHECK_CODE_RESPONSE_HEADERS = {
   "Cache-Control": "no-store",
 } as const;
 
+/** `genders.write` — query params parsed in `gender.service`. */
 export async function GET(request: NextRequest) {
   try {
     const auth = await requireApiAuth(request);

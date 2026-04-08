@@ -1,3 +1,8 @@
+/**
+ * Upload invoice PDF; optional OpenAI-based field extraction (`OPENAI_API_KEY` required).
+ *
+ * **Boundary:** `invoices.write` — multipart `file`, size cap; delegates to `invoice-pdf-extract.service`.
+ */
 import type { NextRequest } from "next/server";
 import { requireApiAuth, requirePermission } from "@/lib/api/auth";
 import { ApiError } from "@/lib/api/errors";
@@ -19,6 +24,7 @@ function isPdfFile(file: File): boolean {
   return name.endsWith(".pdf");
 }
 
+/** `invoices.write` — returns extracted draft fields in `{ data }` or 503 if unconfigured. */
 export async function POST(request: NextRequest) {
   try {
     const auth = await requireApiAuth(request);

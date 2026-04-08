@@ -1,3 +1,8 @@
+/**
+ * Participants (clients) — full list for admin screens and create.
+ *
+ * **Boundary:** `clients.read` / `clients.write` → `client.service`. List returns `{ data: { clients }, meta }` (not paginated here).
+ */
 import type { NextRequest } from "next/server";
 import { requireApiAuth, requirePermission } from "@/lib/api/auth";
 import { readJsonRequestBody } from "@/lib/api/request";
@@ -8,6 +13,7 @@ import { createClient, listClients } from "@/services/client.service";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+/** `clients.read` — all clients (count in `meta`). */
 export async function GET(request: NextRequest) {
   try {
     const auth = await requireApiAuth(request);
@@ -34,6 +40,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
+/** `clients.write` — create; body validated in service. */
 export async function POST(request: NextRequest) {
   try {
     const auth = await requireApiAuth(request);

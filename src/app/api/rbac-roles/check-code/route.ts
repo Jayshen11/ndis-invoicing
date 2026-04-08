@@ -1,3 +1,8 @@
+/**
+ * Form UX: whether a role `code` is already taken (`{ exists }`).
+ *
+ * **Boundary:** `user_roles.write` — `Cache-Control: no-store`.
+ */
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { requireApiAuth, requirePermission } from "@/lib/api/auth";
@@ -11,6 +16,7 @@ const CHECK_CODE_RESPONSE_HEADERS = {
   "Cache-Control": "no-store",
 } as const;
 
+/** `user_roles.write` — query params in `user-role.service`. */
 export async function GET(request: NextRequest) {
   try {
     const auth = await requireApiAuth(request);

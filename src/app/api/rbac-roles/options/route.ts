@@ -1,3 +1,8 @@
+/**
+ * Role rows for selects (assign-user / role pickers).
+ *
+ * **Boundary:** `user_roles.read` → `listRbacRoleOptions`.
+ */
 import type { NextRequest } from "next/server";
 import { requireApiAuth, requirePermission } from "@/lib/api/auth";
 import {
@@ -9,6 +14,7 @@ import { listRbacRoleOptions } from "@/services/user-role.service";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+/** `user_roles.read` — `{ data }` array. */
 export async function GET(_request: NextRequest) {
   try {
     const auth = await requireApiAuth(_request);

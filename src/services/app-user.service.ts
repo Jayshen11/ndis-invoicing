@@ -183,6 +183,11 @@ export async function createAppUser(
   }
 }
 
+/**
+ * Load one app user for API consumers. Parses `id` from the route segment, loads the row,
+ * maps to `AppUserApiRecord` (password never included). Throws `ApiError` 404 if missing
+ * or not loadable.
+ */
 export async function getAppUser(appUserIdValue: string): Promise<AppUserApiRecord> {
   const appUserId = parseAppUserId(appUserIdValue);
 
@@ -203,6 +208,11 @@ export async function getAppUser(appUserIdValue: string): Promise<AppUserApiReco
   }
 }
 
+/**
+ * Partial update: validates `payload`, merges with existing row, enforces email uniqueness
+ * and role existence, applies extra rules for the default user, optionally re-hashes password.
+ * Persists via repository; may record an audit event when the password changes.
+ */
 export async function updateAppUser(
   appUserIdValue: string,
   payload: unknown,
@@ -278,6 +288,10 @@ export async function updateAppUser(
   }
 }
 
+/**
+ * Soft-delete (`deleted_at`). Refuses the built-in default account (`is_default`).
+ * Returns the updated API shape after marking deleted.
+ */
 export async function markAppUserDeleted(
   appUserIdValue: string,
 ): Promise<AppUserApiRecord> {

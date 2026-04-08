@@ -1,3 +1,8 @@
+/**
+ * Single RBAC role — detail, update (with audit actor), soft-delete.
+ *
+ * **Boundary:** `user-role.service`; PATCH passes `resolveAuditActorForApiAuth` for audit trails.
+ */
 import type { NextRequest } from "next/server";
 import { requireApiAuth, requirePermission } from "@/lib/api/auth";
 import { readJsonRequestBody } from "@/lib/api/request";
@@ -21,6 +26,7 @@ type RbacRoleRouteContext = {
   }>;
 };
 
+/** `user_roles.read` — one role row. */
 export async function GET(
   request: NextRequest,
   context: RbacRoleRouteContext,
@@ -42,6 +48,7 @@ export async function GET(
   }
 }
 
+/** `user_roles.write` — update + audit actor from current session. */
 export async function PATCH(
   request: NextRequest,
   context: RbacRoleRouteContext,
@@ -65,6 +72,7 @@ export async function PATCH(
   }
 }
 
+/** `user_roles.delete` — soft-delete role. */
 export async function DELETE(
   request: NextRequest,
   context: RbacRoleRouteContext,

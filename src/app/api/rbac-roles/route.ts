@@ -1,3 +1,8 @@
+/**
+ * RBAC roles (`rbac_role` / user-role domain) — paginated list and create.
+ *
+ * **Boundary:** `user_roles.read` / `user_roles.write` → `user-role.service`.
+ */
 import type { NextRequest } from "next/server";
 import { requireApiAuth, requirePermission } from "@/lib/api/auth";
 import { readJsonRequestBody } from "@/lib/api/request";
@@ -32,6 +37,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
+/** `user_roles.write` — create role; JSON validated in service. */
 export async function POST(request: NextRequest) {
   try {
     const auth = await requireApiAuth(request);

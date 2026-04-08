@@ -1,3 +1,8 @@
+/**
+ * Detect gaps between rate-set coverage and a proposed range (form UX).
+ *
+ * **Boundary:** `rate_sets.read` — service-shaped JSON, `Cache-Control: no-store`.
+ */
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { requireApiAuth, requirePermission } from "@/lib/api/auth";
@@ -11,6 +16,7 @@ const CHECK_DATE_GAP_HEADERS = {
   "Cache-Control": "no-store",
 } as const;
 
+/** `rate_sets.read` — query params forwarded to `checkRateSetDateGap`. */
 export async function GET(request: NextRequest) {
   try {
     const auth = await requireApiAuth(request);

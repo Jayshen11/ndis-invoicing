@@ -1,3 +1,8 @@
+/**
+ * NDIS rate sets — paginated list; create via JSON or multipart (optional Excel on create).
+ *
+ * **Boundary:** Multipart with file requires `rate_sets.import`; JSON create `rate_sets.write`. Helpers below only parse `FormData` for this route.
+ */
 import type { NextRequest } from "next/server";
 import { requireApiAuth, requirePermission } from "@/lib/api/auth";
 import { readJsonRequestBody } from "@/lib/api/request";
@@ -59,6 +64,7 @@ async function readRateSetMultipartPayload(request: NextRequest): Promise<{
   };
 }
 
+/** `rate_sets.read` — paginated list. */
 export async function GET(request: NextRequest) {
   try {
     const auth = await requireApiAuth(request);
@@ -80,6 +86,10 @@ export async function GET(request: NextRequest) {
   }
 }
 
+/**
+ * Create rate set: JSON body, or `multipart/form-data` with optional `file` (Excel import path).
+ * Permissions: `rate_sets.import` if file present; else `rate_sets.write`.
+ */
 export async function POST(request: NextRequest) {
   try {
     const auth = await requireApiAuth(request);

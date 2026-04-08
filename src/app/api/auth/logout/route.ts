@@ -1,3 +1,8 @@
+/**
+ * Clears session cookie and best-effort revokes current session id in DB.
+ *
+ * **Boundary:** Always 200 `{ success: true }` after clearing cookie; revoke errors logged only.
+ */
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import {
@@ -22,6 +27,7 @@ function appendClearSessionCookie(response: NextResponse) {
   });
 }
 
+/** Idempotent-friendly: clears cookie even if session id missing or revoke fails. */
 export async function POST(request: NextRequest) {
   const raw = request.cookies.get(NDIS_SESSION_COOKIE_NAME)?.value?.trim() ?? "";
 

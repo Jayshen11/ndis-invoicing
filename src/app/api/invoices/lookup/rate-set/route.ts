@@ -1,3 +1,8 @@
+/**
+ * Given invoice line date range, which rate set(s) apply (single id, ambiguous, or list).
+ *
+ * **Boundary:** `invoices.read` — validates `start_date` / `end_date`, then repository.
+ */
 import type { NextRequest } from "next/server";
 import { requireApiAuth, requirePermission } from "@/lib/api/auth";
 import { ApiError } from "@/lib/api/errors";
@@ -28,6 +33,7 @@ function parseYmdParam(
   return v;
 }
 
+/** `invoices.read` — `{ data: { rate_set_ids, rate_set_id, ambiguous } }`. */
 export async function GET(request: NextRequest) {
   try {
     const auth = await requireApiAuth(request);

@@ -1,3 +1,8 @@
+/**
+ * Revoke a session by id (admin forces logout of another device/session).
+ *
+ * **Boundary:** `auth_sessions.revoke` → `revokeAuthSession`; `[id]` is `auth_session` id.
+ */
 import type { NextRequest } from "next/server";
 import { requireApiAuth, requirePermission } from "@/lib/api/auth";
 import {
@@ -13,6 +18,7 @@ type RouteContext = Readonly<{
   params: Promise<{ id: string }>;
 }>;
 
+/** `auth_sessions.revoke` — invalidates target session. */
 export async function POST(request: NextRequest, context: RouteContext) {
   try {
     const auth = await requireApiAuth(request);

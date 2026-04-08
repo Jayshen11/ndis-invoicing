@@ -1,3 +1,8 @@
+/**
+ * Gender catalogue row by `[id]` — read, update, soft-delete.
+ *
+ * **Boundary:** `gender.service`; `[id]` is gender primary key.
+ */
 import type { NextRequest } from "next/server";
 import { requireApiAuth, requirePermission } from "@/lib/api/auth";
 import { readJsonRequestBody } from "@/lib/api/request";
@@ -16,6 +21,7 @@ type GenderRouteContext = {
   }>;
 };
 
+/** `genders.read` — one row. */
 export async function GET(
   request: NextRequest,
   context: GenderRouteContext,
@@ -37,6 +43,7 @@ export async function GET(
   }
 }
 
+/** `genders.write` — partial update. */
 export async function PATCH(
   request: NextRequest,
   context: GenderRouteContext,
@@ -59,6 +66,7 @@ export async function PATCH(
   }
 }
 
+/** `genders.delete` — soft-delete catalogue row. */
 export async function DELETE(
   request: NextRequest,
   context: GenderRouteContext,

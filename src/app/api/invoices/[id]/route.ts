@@ -1,3 +1,8 @@
+/**
+ * Single invoice by `[id]` — detail, update, delete.
+ *
+ * **Boundary:** `invoice.service` / `invoice-create.service`. `[id]` is invoice id (string in URL).
+ */
 import type { NextRequest } from "next/server";
 import { requireApiAuth, requirePermission } from "@/lib/api/auth";
 import { readJsonRequestBody } from "@/lib/api/request";
@@ -10,6 +15,7 @@ export const dynamic = "force-dynamic";
 
 type RouteContext = Readonly<{ params: Promise<{ id: string }> }>;
 
+/** `invoices.read` — full detail payload for editor/view. */
 export async function GET(request: NextRequest, context: RouteContext) {
   try {
     const auth = await requireApiAuth(request);
@@ -47,6 +53,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   }
 }
 
+/** `invoices.delete` — removes invoice per service rules. */
 export async function DELETE(request: NextRequest, context: RouteContext) {
   try {
     const auth = await requireApiAuth(request);

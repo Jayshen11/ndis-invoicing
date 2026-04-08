@@ -71,27 +71,6 @@ async function runAppUserSchemaPatches(): Promise<void> {
       ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
   `.execute(db);
 
-  // Legacy boolean soft-delete → deleted_at; drop is_deleted; rebuild email uniqueness index.
-  await sql`
-    DO $drop_app_user_is_deleted$
-    BEGIN
-      IF EXISTS (
-        SELECT 1
-        FROM information_schema.columns
-        WHERE table_schema = 'public'
-          AND table_name = 'app_user'
-          AND column_name = 'is_deleted'
-      ) THEN
-        UPDATE app_user
-        SET deleted_at = COALESCE(deleted_at, updated_at)
-        WHERE is_deleted = TRUE;
-
-        DROP INDEX IF EXISTS idx_app_user_email_lower;
-        ALTER TABLE app_user DROP COLUMN is_deleted;
-      END IF;
-    END $drop_app_user_is_deleted$;
-  `.execute(db);
-
   await sql`
     CREATE UNIQUE INDEX IF NOT EXISTS idx_app_user_email_lower
     ON app_user (lower(btrim(email)))
@@ -177,7 +156,7 @@ async function runAppUserSchemaPatches(): Promise<void> {
     WITH role_pick AS (
       SELECT r.id AS role_id
       FROM ${sql.table(roleTable)} AS r
-      WHERE COALESCE(r.is_deleted, FALSE) = FALSE
+      WHERE r.deleted_at IS NULL
         AND r.code = 'SUPER_ADMIN'
       LIMIT 1
     ),
@@ -219,7 +198,7 @@ export async function resolveAuthRbacForAppUserId(
     FROM rbac_user_role bur
     INNER JOIN ${sql.table(roleTable)} r ON r.id = bur.role_id
     WHERE bur.user_id = ${userId}
-      AND COALESCE(r.is_deleted, FALSE) = FALSE
+      AND r.deleted_at IS NULL
     LIMIT 1
   `.execute(db);
 

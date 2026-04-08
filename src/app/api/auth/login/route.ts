@@ -1,3 +1,8 @@
+/**
+ * Email/password sign-in: sets HttpOnly session cookie and returns user + CSRF in JSON.
+ *
+ * **Boundary:** Public route; `loginWithEmailPassword` records IP (from `X-Forwarded-For` / `X-Real-IP`) and User-Agent. ApiError responses use custom JSON shape (not only `handleRouteError`).
+ */
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { ApiError, isApiError } from "@/lib/api/errors";
@@ -43,6 +48,7 @@ function sessionMaxAgeSeconds(): number {
   return n;
 }
 
+/** JSON credentials → Set-Cookie + `{ data: { user, sessionId, csrfToken } }`. */
 export async function POST(request: NextRequest) {
   try {
     let body: unknown;

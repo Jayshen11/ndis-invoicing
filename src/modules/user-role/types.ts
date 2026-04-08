@@ -14,7 +14,8 @@ export type UserRoleListRow = {
   created_at: string;
   updated_at: string;
   deactivated_at: string | null;
-  is_deleted: boolean;
+  /** Soft-delete timestamp; null = active row. */
+  deleted_at: string | null;
   /** System / gateway default role (e.g. full access); not user-assignable as mutable. */
   is_default: boolean;
 };
@@ -26,7 +27,7 @@ export type UserRoleRow = {
   created_at: string;
   updated_at: string;
   deactivated_at: string | null;
-  is_deleted: boolean;
+  deleted_at: string | null;
   is_default: boolean;
   /**
    * Permission slugs: from `rbac_user_role_permission` → `rbac_permission.code` when
@@ -153,6 +154,8 @@ export function normalizeUserRoleListRowTimestamps(
     updated_at: toIso8601UtcZ(row.updated_at),
     deactivated_at:
       row.deactivated_at === null ? null : toIso8601UtcZ(row.deactivated_at),
+    deleted_at:
+      row.deleted_at === null ? null : toIso8601UtcZ(row.deleted_at),
   };
 }
 
@@ -163,6 +166,8 @@ export function normalizeUserRoleRowTimestamps(row: UserRoleRow): UserRoleRow {
     updated_at: toIso8601UtcZ(row.updated_at),
     deactivated_at:
       row.deactivated_at === null ? null : toIso8601UtcZ(row.deactivated_at),
+    deleted_at:
+      row.deleted_at === null ? null : toIso8601UtcZ(row.deleted_at),
     permissions: Array.from(new Set(row.permissions)),
     permission_ids: [...new Set(row.permission_ids)].sort((a, b) => a - b),
   };

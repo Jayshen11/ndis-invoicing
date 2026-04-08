@@ -1,3 +1,8 @@
+/**
+ * Resolve a single NDIS unit price from rate-set grid (or `null` / ambiguous).
+ *
+ * **Boundary:** Validates query params here, then `rate-set-invoice.repository`. Requires `rate_set_id`, `support_item_id`, `start_date`, `end_date`, `pricing_region`.
+ */
 import type { NextRequest } from "next/server";
 import { requireApiAuth, requirePermission } from "@/lib/api/auth";
 import { ApiError } from "@/lib/api/errors";
@@ -7,6 +12,7 @@ import { listMatchingUnitPrices } from "@/repositories/rate-set-invoice.reposito
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+/** `invoices.read` — returns `unit_price`, `match_count`, optional `ambiguous`. */
 export async function GET(request: NextRequest) {
   try {
     const auth = await requireApiAuth(request);

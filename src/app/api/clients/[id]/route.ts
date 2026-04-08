@@ -1,3 +1,8 @@
+/**
+ * Single participant (client) by `[id]` — load, update, delete.
+ *
+ * **Boundary:** `client.service` + `mapClientToApiRecord`. `[id]` is the client primary key (string in URL).
+ */
 import type { NextRequest } from "next/server";
 import { requireApiAuth, requirePermission } from "@/lib/api/auth";
 import { readJsonRequestBody } from "@/lib/api/request";
@@ -21,6 +26,7 @@ type ClientRouteContext = {
   }>;
 };
 
+/** `clients.read` — one client as API record. */
 export async function GET(
   request: NextRequest,
   context: ClientRouteContext,
@@ -42,6 +48,7 @@ export async function GET(
   }
 }
 
+/** `clients.write` — partial update; body validated in service. */
 export async function PATCH(
   request: NextRequest,
   context: ClientRouteContext,
@@ -64,6 +71,7 @@ export async function PATCH(
   }
 }
 
+/** `clients.delete` — returns wrapped deleted client payload from service. */
 export async function DELETE(
   request: NextRequest,
   context: ClientRouteContext,

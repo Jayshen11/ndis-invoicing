@@ -100,7 +100,7 @@ async function applyRbacStructuralSchemaPatches(): Promise<void> {
 
   await sql`
     ALTER TABLE IF EXISTS rbac_role
-      ADD COLUMN IF NOT EXISTS is_deleted boolean NOT NULL DEFAULT false
+      ADD COLUMN IF NOT EXISTS deleted_at timestamptz NULL
   `.execute(db);
 
   await sql`
@@ -130,7 +130,7 @@ async function applyRbacStructuralSchemaPatches(): Promise<void> {
 
   await sql`
     ALTER TABLE IF EXISTS user_role
-      ADD COLUMN IF NOT EXISTS is_deleted boolean NOT NULL DEFAULT false
+      ADD COLUMN IF NOT EXISTS deleted_at timestamptz NULL
   `.execute(db);
 
   await sql`
@@ -416,7 +416,7 @@ function userRoleListWhereClause(filters: UserRoleListFilters) {
   const statusPredicate = getStatusPredicate(filters.status);
 
   return sql`
-    coalesce(r.is_deleted, false) = false
+    r.deleted_at is null
       and ${statusPredicate}
       and (
         ${filters.search} = ''
@@ -460,7 +460,7 @@ export async function listUserRoleRows(
       r.created_at::text as created_at,
       r.updated_at::text as updated_at,
       r.deactivated_at::text as deactivated_at,
-      coalesce(r.is_deleted, false) as is_deleted,
+      r.deleted_at::text as deleted_at,
       coalesce(r.is_default, false) as is_default
     from ${sql.table(table)} as r
     where ${whereClause}
@@ -484,14 +484,14 @@ export async function findConflictingUserRoleIdByCodeCaseInsensitive(
       ? await sql<{ id: number }>`
           select id
           from ${sql.table(table)}
-          where coalesce(is_deleted, false) = false
+          where deleted_at is null
             and lower(code) = lower(${trimmed})
           limit 1
         `.execute(db)
       : await sql<{ id: number }>`
           select id
           from ${sql.table(table)}
-          where coalesce(is_deleted, false) = false
+          where deleted_at is null
             and id <> ${excludeUserRoleId}
             and lower(code) = lower(${trimmed})
           limit 1
@@ -512,13 +512,13 @@ export async function getUserRoleRowById(
       r.created_at::text as created_at,
       r.updated_at::text as updated_at,
       r.deactivated_at::text as deactivated_at,
-      coalesce(r.is_deleted, false) as is_deleted,
+      r.deleted_at::text as deleted_at,
       coalesce(r.is_default, false) as is_default,
       ${rolePermissionsJsonSelect} as permissions,
       ${rolePermissionIdsSelect} as permission_ids
     from ${sql.table(table)} as r
     where r.id = ${userRoleId}
-      and coalesce(r.is_deleted, false) = false
+      and r.deleted_at is null
     limit 1
   `.execute(db);
 
@@ -538,7 +538,6 @@ export async function insertUserRoleRow(
         code,
         label,
         deactivated_at,
-        is_deleted,
         is_default,
         permissions
       )
@@ -546,7 +545,6 @@ export async function insertUserRoleRow(
         ${input.code},
         ${input.label},
         ${input.deactivated_at},
-        false,
         false,
         ${permissionsJson}
       )
@@ -590,7 +588,7 @@ export async function updateUserRoleRow(
           else coalesce(deactivated_at, now())
         end
       where id = ${userRoleId}
-        and coalesce(is_deleted, false) = false
+        and deleted_at is null
       returning id
     `.execute(trx);
 
@@ -616,10 +614,10 @@ export async function markUserRoleRowDeleted(
   const result = await sql<UserRoleDbRow>`
     update ${sql.table(table)}
     set
-      is_deleted = true,
+      deleted_at = now(),
       updated_at = now()
     where id = ${userRoleId}
-      and coalesce(is_deleted, false) = false
+      and deleted_at is null
     returning
       id,
       code,
@@ -627,7 +625,7 @@ export async function markUserRoleRowDeleted(
       created_at::text as created_at,
       updated_at::text as updated_at,
       deactivated_at::text as deactivated_at,
-      coalesce(is_deleted, false) as is_deleted,
+      deleted_at::text as deleted_at,
       coalesce(is_default, false) as is_default,
       ${rolePermissionsJsonReturning} as permissions,
       ${rolePermissionIdsReturning} as permission_ids
@@ -650,7 +648,7 @@ export async function listRbacRoleOptionRows(): Promise<RbacRoleOptionRow[]> {
       r.id,
       r.label
     from ${sql.table(table)} r
-    where coalesce(r.is_deleted, false) = false
+    where r.deleted_at is null
     order by lower(r.label) asc, r.id asc
     limit ${RBAC_ROLE_OPTIONS_MAX}
   `.execute(db);

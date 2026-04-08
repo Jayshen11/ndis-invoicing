@@ -307,7 +307,7 @@ CREATE TABLE IF NOT EXISTS rbac_role (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   deactivated_at TIMESTAMPTZ NULL,
-  is_deleted BOOLEAN NOT NULL DEFAULT false,
+  deleted_at TIMESTAMPTZ NULL,
   permissions TEXT NOT NULL DEFAULT '[]'
 );
 

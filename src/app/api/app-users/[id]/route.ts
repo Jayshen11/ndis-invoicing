@@ -1,3 +1,13 @@
+/**
+ * App user by id — HTTP API for a single dashboard user (`app_user` + RBAC role).
+ *
+ * **Boundary:** Auth + RBAC + parse → `app-user.service` / `app-user.repository` (no business logic in this file).
+ *
+ * **Responses:** Success bodies use `{ data: ... }` via `createSuccessResponse`.
+ * Errors are normalized by `handleRouteError` (never leak stack traces to clients).
+ *
+ * **Path:** `[id]` is the numeric `app_user.id` (string in the URL, parsed in the service).
+ */
 import type { NextRequest } from "next/server";
 import { requireApiAuth, requirePermission } from "@/lib/api/auth";
 import { readJsonRequestBody } from "@/lib/api/request";
@@ -20,6 +30,7 @@ type AppUserRouteContext = {
   }>;
 };
 
+/** `users.read` — returns one sanitized `AppUserApiRecord` (no password hash). */
 export async function GET(
   request: NextRequest,
   context: AppUserRouteContext,
@@ -41,6 +52,7 @@ export async function GET(
   }
 }
 
+/** `users.write` — JSON body validated in service; optional password change hashes with Argon2. */
 export async function PATCH(
   request: NextRequest,
   context: AppUserRouteContext,
@@ -63,6 +75,7 @@ export async function PATCH(
   }
 }
 
+/** `users.delete` — soft-deletes the row; default/system user cannot be removed (403 from service). */
 export async function DELETE(
   request: NextRequest,
   context: AppUserRouteContext,

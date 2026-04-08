@@ -1,3 +1,8 @@
+/**
+ * Single provider by `[id]` — load, update, delete.
+ *
+ * **Boundary:** `provider.service`; `[id]` is provider primary key.
+ */
 import type { NextRequest } from "next/server";
 import { requireApiAuth, requirePermission } from "@/lib/api/auth";
 import { readJsonRequestBody } from "@/lib/api/request";
@@ -17,6 +22,7 @@ type ProviderRouteContext = {
   }>;
 };
 
+/** `providers.read` — one provider. */
 export async function GET(
   request: NextRequest,
   context: ProviderRouteContext,
@@ -38,6 +44,7 @@ export async function GET(
   }
 }
 
+/** `providers.write` — partial update. */
 export async function PATCH(
   request: NextRequest,
   context: ProviderRouteContext,
@@ -60,6 +67,7 @@ export async function PATCH(
   }
 }
 
+/** `providers.delete` — delete provider per service rules. */
 export async function DELETE(
   request: NextRequest,
   context: ProviderRouteContext,

@@ -1,3 +1,8 @@
+/**
+ * Invoices — paginated list and create.
+ *
+ * **Boundary:** `invoices.read` / `invoices.write` → `invoice.service` / `invoice-create.service`.
+ */
 import type { NextRequest } from "next/server";
 import { requireApiAuth, requirePermission } from "@/lib/api/auth";
 import { readJsonRequestBody } from "@/lib/api/request";
@@ -29,6 +34,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
+/** `invoices.write` — create invoice from JSON payload. */
 export async function POST(request: NextRequest) {
   try {
     const auth = await requireApiAuth(request);

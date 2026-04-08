@@ -1,3 +1,8 @@
+/**
+ * Validate whether proposed rate-set dates overlap existing sets (form UX).
+ *
+ * **Boundary:** `rate_sets.read` — raw JSON from service, `Cache-Control: no-store`.
+ */
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { requireApiAuth, requirePermission } from "@/lib/api/auth";
@@ -11,6 +16,7 @@ const CHECK_DATE_OVERLAP_HEADERS = {
   "Cache-Control": "no-store",
 } as const;
 
+/** `rate_sets.read` — query params forwarded to `checkRateSetDateOverlap`. */
 export async function GET(request: NextRequest) {
   try {
     const auth = await requireApiAuth(request);

@@ -1,3 +1,8 @@
+/**
+ * Active login sessions — paginated admin view.
+ *
+ * **Boundary:** `auth_sessions.read` → `auth-session.service`.
+ */
 import type { NextRequest } from "next/server";
 import { requireApiAuth, requirePermission } from "@/lib/api/auth";
 import {
@@ -9,6 +14,7 @@ import { listAuthSessionsPage } from "@/services/auth-session.service";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+/** `auth_sessions.read` — paginated list. */
 export async function GET(request: NextRequest) {
   try {
     const auth = await requireApiAuth(request);
