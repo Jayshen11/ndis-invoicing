@@ -1346,12 +1346,6 @@ export function ClientsManager() {
           <p className="mt-2 text-sm text-slate-500">
             Manage participant records.
           </p>
-          {!canWriteClients ? (
-            <p className="mt-2 text-sm text-slate-500">
-              You have read-only access; add, edit, and delete require the
-              corresponding client permissions.
-            </p>
-          ) : null}
         </div>
 
         <div className="px-6 py-5">
@@ -1385,31 +1379,6 @@ export function ClientsManager() {
           {loadError ? (
             <div className="mt-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
               {loadError}
-            </div>
-          ) : null}
-
-          {!isLoading && (!canReadGenders || !canReadRateSets) ? (
-            <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
-              <ul className="list-disc space-y-1 pl-5">
-                {!canReadRateSets ? (
-                  <li>
-                    Without rate_sets.read, the pricing region filter lists only
-                    regions that appear on loaded participants.
-                    {canWriteClients
-                      ? " Adding a new participant still requires the full pricing-region catalogue."
-                      : ""}
-                  </li>
-                ) : null}
-                {!canReadGenders ? (
-                  <li>
-                    Adding new participants requires the genders catalogue
-                    (genders.read). You can still view the list
-                    {canWriteClients
-                      ? " and edit existing participants without changing gender."
-                      : "."}
-                  </li>
-                ) : null}
-              </ul>
             </div>
           ) : null}
 

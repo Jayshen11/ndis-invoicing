@@ -710,12 +710,6 @@ export function ProvidersManager() {
           <p className="mt-2 text-sm text-slate-500">
             Manage provider records.
           </p>
-          {!canWriteProviders ? (
-            <p className="mt-2 text-sm text-slate-500">
-              You have read-only access; add, edit, and delete require the
-              corresponding provider permissions.
-            </p>
-          ) : null}
         </div>
 
         <div className="px-6 py-5">
